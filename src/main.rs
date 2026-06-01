@@ -1,4 +1,4 @@
-﻿mod models;
+mod models;
 mod scanners;
 mod cleaner;
 
@@ -591,26 +591,31 @@ impl ResignationDeleteApp {
         egui::ScrollArea::vertical().show(ui, |ui| {
             for cat_idx in 0..self.categories.len() {
                 let category = &mut self.categories[cat_idx];
+                let cat_name = category.name.clone();
+                let cat_selected = category.selected_count;
+                let cat_total = category.total_count;
+                let cat_expanded = category.expanded;
                 
                 // 分类标题栏
                 let header_response = egui::CollapsingHeader::new(
                     egui::RichText::new(format!("{} ({}/{})", 
-                        category.name, 
-                        category.selected_count, 
-                        category.total_count
+                        cat_name, 
+                        cat_selected, 
+                        cat_total
                     )).size(16.0).strong()
                 )
-                .default_open(category.expanded)
+                .default_open(cat_expanded)
                 .show(ui, |ui| {
                     // 分类全选按钮
                     ui.horizontal(|ui| {
-                        let all_selected = category.selected_count == category.total_count;
+                        let all_selected = cat_selected == cat_total;
                         let mut select_all = all_selected;
                         if ui.checkbox(&mut select_all, "全选此分类").changed() {
-                            for item in &mut category.items {
+                            let cat = &mut self.categories[cat_idx];
+                            for item in &mut cat.items {
                                 item.selected = select_all;
                             }
-                            category.selected_count = if select_all { category.total_count } else { 0 };
+                            cat.selected_count = if select_all { cat_total } else { 0 };
                             self.update_selected_count();
                         }
                     });
@@ -618,8 +623,8 @@ impl ResignationDeleteApp {
                     ui.add_space(5.0);
                     
                     // 项目列表
-                    for item_idx in 0..category.items.len() {
-                        let item = &mut category.items[item_idx];
+                    for item_idx in 0..self.categories[cat_idx].items.len() {
+                        let item = &self.categories[cat_idx].items[item_idx];
                         
                         let risk_color = match item.risk_level {
                             RiskLevel::Critical => egui::Color32::RED,
@@ -635,41 +640,49 @@ impl ResignationDeleteApp {
                             RiskLevel::Low => "低风险",
                         };
                         
-                        let bg_color = if item.selected {
+                        let item_name = item.name.clone();
+                        let item_desc = item.description.clone();
+                        let item_path = item.path.clone();
+                        let item_size = item.size;
+                        let item_scanned = item.scanned;
+                        let item_selected = item.selected;
+                        
+                        let bg_color = if item_selected {
                             egui::Color32::from_rgb(230, 245, 255)
                         } else {
                             egui::Color32::WHITE
                         };
                         
+                        let mut checked = item_selected;
                         egui::Frame::group(ui.style())
                             .fill(bg_color)
                             .stroke(egui::Stroke::new(1.0, egui::Color32::LIGHT_GRAY))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    let mut checked = item.selected;
                                     if ui.checkbox(&mut checked, "").changed() {
-                                        item.selected = checked;
-                                        category.selected_count = category.items.iter().filter(|i| i.selected).count();
+                                        let cat = &mut self.categories[cat_idx];
+                                        cat.items[item_idx].selected = checked;
+                                        cat.selected_count = cat.items.iter().filter(|i| i.selected).count();
                                         self.update_selected_count();
                                     }
                                     
                                     ui.vertical(|ui| {
                                         ui.horizontal(|ui| {
-                                            ui.label(egui::RichText::new(&item.name).strong());
+                                            ui.label(egui::RichText::new(&item_name).strong());
                                             ui.colored_label(risk_color, format!("[{}]", risk_text));
-                                            if item.scanned {
+                                            if item_scanned {
                                                 ui.colored_label(egui::Color32::GREEN, "已发现");
                                             }
                                         });
                                         
-                                        ui.label(egui::RichText::new(&item.description).size(12.0).color(egui::Color32::DARK_GRAY));
+                                        ui.label(egui::RichText::new(&item_desc).size(12.0).color(egui::Color32::DARK_GRAY));
                                         
-                                        if item.scanned && item.size > 0 {
+                                        if item_scanned && item_size > 0 {
                                             ui.label(egui::RichText::new(format!("路径: {} | 大小: {}", 
-                                                item.path, Self::format_size(item.size)))
+                                                item_path, Self::format_size(item_size)))
                                                 .size(11.0).color(egui::Color32::GRAY));
                                         } else {
-                                            ui.label(egui::RichText::new(format!("路径: {}", item.path))
+                                            ui.label(egui::RichText::new(format!("路径: {}", item_path))
                                                 .size(11.0).color(egui::Color32::GRAY));
                                         }
                                     });
@@ -680,7 +693,7 @@ impl ResignationDeleteApp {
                     }
                 });
                 
-                category.expanded = header_response.fully_open();
+                self.categories[cat_idx].expanded = header_response.fully_open();
                 ui.add_space(10.0);
             }
         });
@@ -819,8 +832,8 @@ impl ResignationDeleteApp {
                         data_type: models::DataType::Document,
                         risk_level: item.risk_level,
                         size: item.size,
-                        created_at: None,
-                        modified_at: None,
+                        created_at: std::time::SystemTime::now(),
+                        modified_at: std::time::SystemTime::now(),
                         description: Some(item.description.clone()),
                     });
                 }
