@@ -22,38 +22,33 @@ fn main() -> Result<(), eframe::Error> {
         "Resignation Delete",
         options,
         Box::new(|cc| {
-            configure_fonts(&cc.egui_ctx);
+            setup_custom_fonts(&cc.egui_ctx);
             Ok(Box::<ResignationDeleteApp>::default())
         }),
     )
 }
 
-fn configure_fonts(ctx: &egui::Context) {
-    #[cfg(target_os = "windows")]
-    {
-        let mut fonts = egui::FontDefinitions::default();
-        
-        if let Ok(font_data) = std::fs::read("C:/Windows/Fonts/segoeui.ttf") {
-            fonts.font_data.insert(
-                "my_font".to_owned(),
-                egui::FontData::from_owned(font_data).into(),
-            );
-            
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .insert(0, "my_font".to_owned());
-            
-            fonts
-                .families
-                .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push("my_font".to_owned());
-            
-            ctx.set_fonts(fonts);
-        }
-    }
+fn setup_custom_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    
+    fonts.font_data.insert(
+        "my_font".to_owned(),
+        egui::FontData::from_static(include_bytes!("../assets/NotoSansCJKsc-Regular.otf")).into(),
+    );
+    
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "my_font".to_owned());
+    
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .push("my_font".to_owned());
+    
+    ctx.set_fonts(fonts);
 }
 
 struct ResignationDeleteApp {
@@ -94,7 +89,7 @@ impl eframe::App for ResignationDeleteApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
-                ui.heading("Resignation Delete - Personal Data Cleanup Tool");
+                ui.heading("绂昏亴鏁版嵁娓呯悊宸ュ叿 - Resignation Delete");
             });
             ui.separator();
         });
@@ -103,17 +98,17 @@ impl eframe::App for ResignationDeleteApp {
             ui.horizontal(|ui| {
                 if self.is_scanning {
                     ui.add(egui::ProgressBar::new(self.scan_progress).show_percentage());
-                    ui.label("Scanning system...");
+                    ui.label("姝ｅ湪鎵弿绯荤粺...");
                 } else if self.is_cleaning {
-                    ui.label("Cleaning data... Please wait");
+                    ui.label("姝ｅ湪娓呯悊鏁版嵁... 璇风◢鍊?);
                 } else if !self.scanned_items.is_empty() {
                     ui.label(format!(
-                        "Found: {} items | Selected: {} | Ready",
+                        "鍙戠幇: {} 涓」鐩?| 宸查€夋嫨: {} | 灏辩华",
                         self.scanned_items.len(),
                         self.selected_items.len()
                     ));
                 } else {
-                    ui.label("Click 'Scan System' to start");
+                    ui.label("鐐瑰嚮"鎵弿绯荤粺"寮€濮嬫煡鎵句釜浜烘暟鎹?);
                 }
             });
         });
@@ -122,7 +117,7 @@ impl eframe::App for ResignationDeleteApp {
             .resizable(false)
             .default_width(200.0)
             .show(ctx, |ui| {
-                ui.heading("Actions");
+                ui.heading("鎿嶄綔");
                 ui.separator();
                 
                 ui.vertical(|ui| {
@@ -130,7 +125,7 @@ impl eframe::App for ResignationDeleteApp {
                     
                     let scan_btn = ui.add_sized(
                         [180.0, 40.0],
-                        egui::Button::new("Scan System")
+                        egui::Button::new("鎵弿绯荤粺")
                             .fill(egui::Color32::from_rgb(0, 120, 212))
                     );
                     if scan_btn.clicked() && !self.is_scanning {
@@ -140,14 +135,14 @@ impl eframe::App for ResignationDeleteApp {
                     ui.add_space(10.0);
                     
                     ui.add_enabled_ui(!self.scanned_items.is_empty(), |ui| {
-                        if ui.add_sized([180.0, 35.0], egui::Button::new("Select All")).clicked() {
+                        if ui.add_sized([180.0, 35.0], egui::Button::new("鍏ㄩ€?)).clicked() {
                             self.selected_items.clear();
                             for item in &self.scanned_items {
                                 self.selected_items.insert(item.id.clone());
                             }
                         }
                         
-                        if ui.add_sized([180.0, 35.0], egui::Button::new("Deselect All")).clicked() {
+                        if ui.add_sized([180.0, 35.0], egui::Button::new("鍙栨秷鍏ㄩ€?)).clicked() {
                             self.selected_items.clear();
                         }
                     });
@@ -157,7 +152,7 @@ impl eframe::App for ResignationDeleteApp {
                     ui.add_enabled_ui(!self.selected_items.is_empty() && !self.is_cleaning, |ui| {
                         let clean_btn = ui.add_sized(
                             [180.0, 40.0],
-                            egui::Button::new("Clean Selected")
+                            egui::Button::new("娓呴櫎閫変腑椤?)
                                 .fill(egui::Color32::from_rgb(220, 53, 69))
                         );
                         if clean_btn.clicked() {
@@ -166,7 +161,7 @@ impl eframe::App for ResignationDeleteApp {
                     });
                     
                     ui.add_space(30.0);
-                    ui.heading("Statistics");
+                    ui.heading("缁熻");
                     ui.separator();
                     
                     if !self.scanned_items.is_empty() {
@@ -179,16 +174,16 @@ impl eframe::App for ResignationDeleteApp {
                             .filter(|i| self.selected_items.contains(&i.id) && i.risk_level == RiskLevel::High)
                             .count();
                         
-                        ui.label(format!("Total: {}", total));
-                        ui.label(format!("Selected: {}", selected));
+                        ui.label(format!("鎬昏: {}", total));
+                        ui.label(format!("宸查€夋嫨: {}", selected));
                         if critical > 0 {
-                            ui.colored_label(egui::Color32::RED, format!("Critical: {}", critical));
+                            ui.colored_label(egui::Color32::RED, format!("涓ラ噸: {}", critical));
                         }
                         if high > 0 {
-                            ui.colored_label(egui::Color32::from_rgb(255, 165, 0), format!("High Risk: {}", high));
+                            ui.colored_label(egui::Color32::from_rgb(255, 165, 0), format!("楂橀闄? {}", high));
                         }
                     } else {
-                        ui.label("No data scanned yet");
+                        ui.label("灏氭湭鎵弿鏁版嵁");
                     }
                 });
             });
@@ -222,20 +217,20 @@ impl ResignationDeleteApp {
         self.logs.push(CleanLog {
             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             level: LogLevel::Info,
-            message: format!("Scan complete. Found {} items.", self.scanned_items.len()),
+            message: format!("鎵弿瀹屾垚锛屽彂鐜?{} 涓」鐩?, self.scanned_items.len()),
             item_path: None,
         });
     }
 
     fn draw_item_list(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scanned Items");
+        ui.heading("鎵弿缁撴灉");
         ui.separator();
 
         if self.scanned_items.is_empty() {
             ui.vertical_centered(|ui| {
                 ui.add_space(100.0);
-                ui.label("No items scanned yet.");
-                ui.label("Click 'Scan System' to find personal data.");
+                ui.label("灏氭湭鎵弿鏁版嵁");
+                ui.label("鐐瑰嚮宸︿晶"鎵弿绯荤粺"鎸夐挳寮€濮嬫煡鎵句釜浜烘暟鎹?);
             });
             return;
         }
@@ -265,10 +260,10 @@ impl ResignationDeleteApp {
                     };
                     
                     let risk_text = match item.risk_level {
-                        RiskLevel::Critical => "CRITICAL",
-                        RiskLevel::High => "HIGH",
-                        RiskLevel::Medium => "MEDIUM",
-                        RiskLevel::Low => "LOW",
+                        RiskLevel::Critical => "涓ラ噸",
+                        RiskLevel::High => "楂橀闄?,
+                        RiskLevel::Medium => "涓瓑",
+                        RiskLevel::Low => "浣庨闄?,
                     };
                     
                     egui::Frame::group(ui.style())
@@ -296,8 +291,8 @@ impl ResignationDeleteApp {
                                     }
                                     
                                     ui.horizontal(|ui| {
-                                        ui.label(egui::RichText::new(format!("Path: {}", item.path)).size(11.0).color(egui::Color32::GRAY));
-                                        ui.label(egui::RichText::new(format!("Size: {}", Self::format_size(item.size))).size(11.0).color(egui::Color32::GRAY));
+                                        ui.label(egui::RichText::new(format!("璺緞: {}", item.path)).size(11.0).color(egui::Color32::GRAY));
+                                        ui.label(egui::RichText::new(format!("澶у皬: {}", Self::format_size(item.size))).size(11.0).color(egui::Color32::GRAY));
                                     });
                                 });
                             });
@@ -312,7 +307,7 @@ impl ResignationDeleteApp {
     fn draw_confirm_dialog(&mut self, ctx: &egui::Context) {
         let mut should_close = false;
         
-        egui::Window::new("Confirm Deletion")
+        egui::Window::new("纭鍒犻櫎")
             .collapsible(false)
             .resizable(false)
             .fixed_size([400.0, 200.0])
@@ -322,19 +317,19 @@ impl ResignationDeleteApp {
                     ui.add_space(10.0);
                     ui.colored_label(
                         egui::Color32::RED,
-                        egui::RichText::new("WARNING").size(20.0).strong()
+                        egui::RichText::new("璀﹀憡").size(20.0).strong()
                     );
                     ui.add_space(10.0);
-                    ui.label("This action will permanently delete selected data!");
-                    ui.label("Deleted data cannot be recovered.");
+                    ui.label("姝ゆ搷浣滃皢姘镐箙鍒犻櫎閫変腑鐨勬暟鎹紒");
+                    ui.label("鍒犻櫎鐨勬暟鎹棤娉曟仮澶嶃€?);
                     ui.add_space(10.0);
-                    ui.label(format!("Items to delete: {}", self.selected_items.len()));
+                    ui.label(format!("寰呭垹闄ら」鐩暟: {}", self.selected_items.len()));
                     ui.add_space(20.0);
                     
                     ui.horizontal(|ui| {
                         let confirm_btn = ui.add_sized(
                             [120.0, 35.0],
-                            egui::Button::new("Confirm Delete")
+                            egui::Button::new("纭鍒犻櫎")
                                 .fill(egui::Color32::from_rgb(220, 53, 69))
                         );
                         if confirm_btn.clicked() {
@@ -344,7 +339,7 @@ impl ResignationDeleteApp {
                         
                         ui.add_space(20.0);
                         
-                        if ui.add_sized([120.0, 35.0], egui::Button::new("Cancel")).clicked() {
+                        if ui.add_sized([120.0, 35.0], egui::Button::new("鍙栨秷")).clicked() {
                             should_close = true;
                         }
                     });
@@ -375,7 +370,7 @@ impl ResignationDeleteApp {
                 self.logs.push(CleanLog {
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     level: LogLevel::Info,
-                    message: "Cleanup completed successfully".to_string(),
+                    message: "娓呯悊瀹屾垚".to_string(),
                     item_path: None,
                 });
                 
@@ -386,7 +381,7 @@ impl ResignationDeleteApp {
                 self.logs.push(CleanLog {
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     level: LogLevel::Error,
-                    message: format!("Cleanup failed: {}", e),
+                    message: format!("娓呯悊澶辫触: {}", e),
                     item_path: None,
                 });
             }
