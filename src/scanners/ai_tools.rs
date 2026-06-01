@@ -19,6 +19,8 @@ impl Scanner for AIToolsScanner {
             items.extend(self.scan_kimi(&home_dir));
             items.extend(self.scan_qwen(&home_dir));
             items.extend(self.scan_github_copilot(&home_dir));
+            items.extend(self.scan_opencode(&home_dir));
+            items.extend(self.scan_trae(&home_dir));
         }
 
         items
@@ -179,6 +181,74 @@ impl AIToolsScanner {
         for dir in copilot_dirs {
             if dir.exists() {
                 if let Some(item) = self.create_data_item(&dir, "GitHub Copilot", "Configuration/Cache") {
+                    items.push(item);
+                }
+            }
+        }
+
+        items
+    }
+
+    fn scan_opencode(&self, home_dir: &Path) -> Vec<DataItem> {
+        let mut items = Vec::new();
+
+        let opencode_dirs = if cfg!(target_os = "windows") {
+            vec![
+                home_dir.join("AppData").join("Roaming").join("OpenCode"),
+                home_dir.join("AppData").join("Local").join("OpenCode"),
+                home_dir.join(".opencode"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                home_dir.join("Library").join("Application Support").join("OpenCode"),
+                home_dir.join("Library").join("Caches").join("OpenCode"),
+                home_dir.join(".opencode"),
+            ]
+        } else {
+            vec![
+                home_dir.join(".config").join("opencode"),
+                home_dir.join(".cache").join("opencode"),
+                home_dir.join(".opencode"),
+            ]
+        };
+
+        for dir in opencode_dirs {
+            if dir.exists() {
+                if let Some(item) = self.create_data_item(&dir, "OpenCode", "Configuration/Cache") {
+                    items.push(item);
+                }
+            }
+        }
+
+        items
+    }
+
+    fn scan_trae(&self, home_dir: &Path) -> Vec<DataItem> {
+        let mut items = Vec::new();
+
+        let trae_dirs = if cfg!(target_os = "windows") {
+            vec![
+                home_dir.join("AppData").join("Roaming").join("Trae"),
+                home_dir.join("AppData").join("Local").join("Trae"),
+                home_dir.join(".trae"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                home_dir.join("Library").join("Application Support").join("Trae"),
+                home_dir.join("Library").join("Caches").join("Trae"),
+                home_dir.join(".trae"),
+            ]
+        } else {
+            vec![
+                home_dir.join(".config").join("trae"),
+                home_dir.join(".cache").join("trae"),
+                home_dir.join(".trae"),
+            ]
+        };
+
+        for dir in trae_dirs {
+            if dir.exists() {
+                if let Some(item) = self.create_data_item(&dir, "Trae", "Configuration/Cache") {
                     items.push(item);
                 }
             }
