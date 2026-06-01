@@ -18,7 +18,7 @@ fn main() -> Result<(), eframe::Error> {
     };
     
     eframe::run_native(
-        "Resignation Delete - 绂昏亴鏁版嵁娓呯悊宸ュ叿",
+        "Resignation Delete - 离职数据清理工具",
         options,
         Box::new(|cc| {
             setup_custom_fonts(&cc.egui_ctx);
@@ -91,13 +91,13 @@ impl Default for ResignationDeleteApp {
     fn default() -> Self {
         let categories = vec![
             Category {
-                name: "寮€鍙戝伐鍏?.to_string(),
+                name: "开发工具".to_string(),
                 icon: "code".to_string(),
                 items: vec![
                     CategoryItem {
                         id: "git_ssh".to_string(),
-                        name: "Git SSH 瀵嗛挜".to_string(),
-                        description: "Git SSH 绉侀挜鍜屽叕閽ユ枃浠?.to_string(),
+                        name: "Git SSH 密钥".to_string(),
+                        description: "Git SSH 私钥和公钥文件".to_string(),
                         path: "~/.ssh/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -106,8 +106,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "git_config".to_string(),
-                        name: "Git 鍏ㄥ眬閰嶇疆".to_string(),
-                        description: "Git 鐢ㄦ埛鍚嶃€侀偖绠卞拰鍏ㄥ眬閰嶇疆".to_string(),
+                        name: "Git 全局配置".to_string(),
+                        description: "Git 用户名、邮箱和全局配置".to_string(),
                         path: "~/.gitconfig".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -117,7 +117,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "jetbrains".to_string(),
                         name: "JetBrains IDE".to_string(),
-                        description: "IntelliJ IDEA, PyCharm, WebStorm 绛夎处鍙烽厤缃?.to_string(),
+                        description: "IntelliJ IDEA, PyCharm, WebStorm 等账号配置".to_string(),
                         path: "~/.config/JetBrains/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -127,7 +127,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "vscode".to_string(),
                         name: "VSCode".to_string(),
-                        description: "Visual Studio Code 鐢ㄦ埛閰嶇疆鍜岀櫥褰曚俊鎭?.to_string(),
+                        description: "Visual Studio Code 用户配置和登录信息".to_string(),
                         path: "~/.vscode/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -136,8 +136,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "npm".to_string(),
-                        name: "NPM 閰嶇疆".to_string(),
-                        description: "NPM 鐧诲綍浠ょ墝鍜岄厤缃枃浠?.to_string(),
+                        name: "NPM 配置".to_string(),
+                        description: "NPM 登录令牌和配置文件".to_string(),
                         path: "~/.npmrc".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -146,8 +146,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "docker".to_string(),
-                        name: "Docker 閰嶇疆".to_string(),
-                        description: "Docker 鐧诲綍淇℃伅鍜岄厤缃枃浠?.to_string(),
+                        name: "Docker 配置".to_string(),
+                        description: "Docker 登录信息和配置文件".to_string(),
                         path: "~/.docker/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -156,8 +156,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "ssh".to_string(),
-                        name: "SSH 閰嶇疆".to_string(),
-                        description: "SSH 瀹㈡埛绔厤缃枃浠跺拰 known_hosts".to_string(),
+                        name: "SSH 配置".to_string(),
+                        description: "SSH 客户端配置文件和 known_hosts".to_string(),
                         path: "~/.ssh/config".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -170,13 +170,13 @@ impl Default for ResignationDeleteApp {
                 total_count: 7,
             },
             Category {
-                name: "娴忚鍣?.to_string(),
+                name: "浏览器".to_string(),
                 icon: "browser".to_string(),
                 items: vec![
                     CategoryItem {
                         id: "chrome".to_string(),
                         name: "Chrome".to_string(),
-                        description: "Chrome 娴忚鍣ㄥ巻鍙茶褰曘€丆ookie銆佸瘑鐮?.to_string(),
+                        description: "Chrome 浏览器历史记录、Cookie、密码".to_string(),
                         path: "~/AppData/Local/Google/Chrome/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -186,7 +186,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "edge".to_string(),
                         name: "Edge".to_string(),
-                        description: "Edge 娴忚鍣ㄥ巻鍙茶褰曘€丆ookie銆佸瘑鐮?.to_string(),
+                        description: "Edge 浏览器历史记录、Cookie、密码".to_string(),
                         path: "~/AppData/Local/Microsoft/Edge/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -196,7 +196,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "firefox".to_string(),
                         name: "Firefox".to_string(),
-                        description: "Firefox 娴忚鍣ㄥ巻鍙茶褰曘€丆ookie銆佸瘑鐮?.to_string(),
+                        description: "Firefox 浏览器历史记录、Cookie、密码".to_string(),
                         path: "~/AppData/Roaming/Mozilla/Firefox/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -209,13 +209,13 @@ impl Default for ResignationDeleteApp {
                 total_count: 3,
             },
             Category {
-                name: "AI 宸ュ叿".to_string(),
+                name: "AI 工具".to_string(),
                 icon: "ai".to_string(),
                 items: vec![
                     CategoryItem {
                         id: "cursor".to_string(),
                         name: "Cursor".to_string(),
-                        description: "Cursor AI 缂栬緫鍣ㄨ处鍙峰拰閰嶇疆".to_string(),
+                        description: "Cursor AI 编辑器账号和配置".to_string(),
                         path: "~/.cursor/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -225,7 +225,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "claude".to_string(),
                         name: "Claude Desktop".to_string(),
-                        description: "Claude 妗岄潰搴旂敤璐﹀彿淇℃伅".to_string(),
+                        description: "Claude 桌面应用账号信息".to_string(),
                         path: "~/AppData/Roaming/Claude/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -235,7 +235,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "github_copilot".to_string(),
                         name: "GitHub Copilot".to_string(),
-                        description: "GitHub Copilot 鎺堟潈鍜岄厤缃?.to_string(),
+                        description: "GitHub Copilot 授权和配置".to_string(),
                         path: "~/.config/github-copilot/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -245,7 +245,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "kimi".to_string(),
                         name: "Kimi".to_string(),
-                        description: "Kimi AI 鍔╂墜璐﹀彿淇℃伅".to_string(),
+                        description: "Kimi AI 助手账号信息".to_string(),
                         path: "~/.kimi/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Low,
@@ -254,8 +254,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "qwen".to_string(),
-                        name: "閫氫箟鍗冮棶".to_string(),
-                        description: "閫氫箟鍗冮棶 AI 鍔╂墜璐﹀彿淇℃伅".to_string(),
+                        name: "通义千问".to_string(),
+                        description: "通义千问 AI 助手账号信息".to_string(),
                         path: "~/.qwen/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Low,
@@ -265,7 +265,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "opencode".to_string(),
                         name: "OpenCode".to_string(),
-                        description: "OpenCode AI 缂栫▼鍔╂墜璐﹀彿鍜岄厤缃?.to_string(),
+                        description: "OpenCode AI 编程助手账号和配置".to_string(),
                         path: "~/.opencode/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -275,7 +275,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "trae".to_string(),
                         name: "Trae".to_string(),
-                        description: "Trae AI 缂栬緫鍣ㄨ处鍙峰拰閰嶇疆".to_string(),
+                        description: "Trae AI 编辑器账号和配置".to_string(),
                         path: "~/.trae/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -288,13 +288,13 @@ impl Default for ResignationDeleteApp {
                 total_count: 7,
             },
             Category {
-                name: "鍔炲叕杞欢".to_string(),
+                name: "办公软件".to_string(),
                 icon: "office".to_string(),
                 items: vec![
                     CategoryItem {
                         id: "wps".to_string(),
                         name: "WPS Office".to_string(),
-                        description: "WPS Office 鐧诲綍璐﹀彿鍜屾枃妗ｈ褰?.to_string(),
+                        description: "WPS Office 登录账号和文档记录".to_string(),
                         path: "~/AppData/Local/Kingsoft/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -303,8 +303,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "wechat".to_string(),
-                        name: "寰俊".to_string(),
-                        description: "寰俊鑱婂ぉ璁板綍鍜岀櫥褰曚俊鎭?.to_string(),
+                        name: "微信".to_string(),
+                        description: "微信聊天记录和登录信息".to_string(),
                         path: "~/Documents/WeChat Files/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -314,7 +314,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "qq".to_string(),
                         name: "QQ".to_string(),
-                        description: "QQ 鑱婂ぉ璁板綍鍜岀櫥褰曚俊鎭?.to_string(),
+                        description: "QQ 聊天记录和登录信息".to_string(),
                         path: "~/Documents/Tencent Files/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -323,8 +323,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "dingtalk".to_string(),
-                        name: "閽夐拤".to_string(),
-                        description: "閽夐拤鐧诲綍淇℃伅鍜岃亰澶╄褰?.to_string(),
+                        name: "钉钉".to_string(),
+                        description: "钉钉登录信息和聊天记录".to_string(),
                         path: "~/AppData/Roaming/DingTalk/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -333,8 +333,8 @@ impl Default for ResignationDeleteApp {
                     },
                     CategoryItem {
                         id: "feishu".to_string(),
-                        name: "椋炰功".to_string(),
-                        description: "椋炰功鐧诲綍淇℃伅鍜岃亰澶╄褰?.to_string(),
+                        name: "飞书".to_string(),
+                        description: "飞书登录信息和聊天记录".to_string(),
                         path: "~/AppData/Roaming/Feishu/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -344,7 +344,7 @@ impl Default for ResignationDeleteApp {
                     CategoryItem {
                         id: "microsoft_office".to_string(),
                         name: "Microsoft Office".to_string(),
-                        description: "Office 鐧诲綍璐﹀彿鍜屾枃妗ｇ紦瀛?.to_string(),
+                        description: "Office 登录账号和文档缓存".to_string(),
                         path: "~/AppData/Local/Microsoft/Office/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::Medium,
@@ -352,9 +352,9 @@ impl Default for ResignationDeleteApp {
                         scanned: false,
                     },
                     CategoryItem {
-                        id: "浼佷笟寰俊".to_string(),
-                        name: "浼佷笟寰俊".to_string(),
-                        description: "浼佷笟寰俊鑱婂ぉ璁板綍鍜岀櫥褰曚俊鎭?.to_string(),
+                        id: "企业微信".to_string(),
+                        name: "企业微信".to_string(),
+                        description: "企业微信聊天记录和登录信息".to_string(),
                         path: "~/Documents/WXWork/".to_string(),
                         size: 0,
                         risk_level: RiskLevel::High,
@@ -390,44 +390,46 @@ impl Default for ResignationDeleteApp {
 
 impl eframe::App for ResignationDeleteApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // 椤堕儴鏍囬鏍?        egui::TopBottomPanel::top("header").exact_height(60.0).show(ctx, |ui| {
+        // 顶部标题栏
+        egui::TopBottomPanel::top("header").exact_height(60.0).show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(20.0);
                 ui.heading(egui::RichText::new("Resignation Delete").size(28.0).strong());
-                ui.label(egui::RichText::new("绂昏亴鏁版嵁娓呯悊宸ュ叿").size(16.0).color(egui::Color32::GRAY));
+                ui.label(egui::RichText::new("离职数据清理工具").size(16.0).color(egui::Color32::GRAY));
             });
         });
 
-        // 搴曢儴鐘舵€佹爮
+        // 底部状态栏
         egui::TopBottomPanel::bottom("status_bar").exact_height(40.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.add_space(20.0);
                 if self.is_scanning {
                     ui.add(egui::ProgressBar::new(self.scan_progress).show_percentage().desired_width(200.0));
-                    ui.label("姝ｅ湪鎵弿绯荤粺...");
+                    ui.label("正在扫描系统...");
                 } else if self.is_cleaning {
-                    ui.label("姝ｅ湪娓呯悊鏁版嵁... 璇风◢鍊?);
+                    ui.label("正在清理数据... 请稍候");
                 } else {
                     ui.label(format!(
-                        "鍏?{} 涓」鐩?| 宸查€夋嫨 {} 涓?| 宸叉竻鐞?{} 涓?,
+                        "共 {} 个项目 | 已选择 {} 个 | 已清理 {} 个",
                         self.total_items, self.selected_items, self.cleaned_count
                     ));
                 }
             });
         });
 
-        // 涓诲唴瀹瑰尯
+        // 主内容区
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // 宸︿晶鎺у埗闈㈡澘
+                // 左侧控制面板
                 ui.vertical(|ui| {
                     ui.set_width(250.0);
                     
-                    // 涓€閿壂鎻忔寜閽?                    ui.add_space(20.0);
+                    // 一键扫描按钮
+                    ui.add_space(20.0);
                     let scan_btn = ui.add_sized(
                         [230.0, 50.0],
                         egui::Button::new(
-                            egui::RichText::new("涓€閿壂鎻?).size(18.0).strong()
+                            egui::RichText::new("一键扫描").size(18.0).strong()
                         ).fill(egui::Color32::from_rgb(0, 120, 212))
                     );
                     if scan_btn.clicked() && !self.is_scanning && !self.is_cleaning {
@@ -436,10 +438,11 @@ impl eframe::App for ResignationDeleteApp {
                     
                     ui.add_space(15.0);
                     
-                    // 涓€閿竻鐞嗘寜閽?                    let clean_btn = ui.add_sized(
+                    // 一键清理按钮
+                    let clean_btn = ui.add_sized(
                         [230.0, 50.0],
                         egui::Button::new(
-                            egui::RichText::new("涓€閿竻鐞?).size(18.0).strong()
+                            egui::RichText::new("一键清理").size(18.0).strong()
                         ).fill(if self.selected_items > 0 {
                             egui::Color32::from_rgb(220, 53, 69)
                         } else {
@@ -452,30 +455,30 @@ impl eframe::App for ResignationDeleteApp {
                     
                     ui.add_space(30.0);
                     
-                    // 缁熻淇℃伅
+                    // 统计信息
                     egui::Frame::group(ui.style())
                         .fill(egui::Color32::from_rgb(248, 249, 250))
                         .show(ui, |ui| {
                             ui.set_width(230.0);
-                            ui.heading("鎵弿缁熻");
+                            ui.heading("扫描统计");
                             ui.separator();
                             
                             ui.horizontal(|ui| {
-                                ui.label("鎬婚」鐩?");
+                                ui.label("总项目:");
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.label(self.total_items.to_string());
                                 });
                             });
                             
                             ui.horizontal(|ui| {
-                                ui.label("宸查€夋嫨:");
+                                ui.label("已选择:");
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.colored_label(egui::Color32::from_rgb(0, 120, 212), self.selected_items.to_string());
                                 });
                             });
                             
                             ui.horizontal(|ui| {
-                                ui.label("宸叉竻鐞?");
+                                ui.label("已清理:");
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.colored_label(egui::Color32::from_rgb(40, 167, 69), self.cleaned_count.to_string());
                                 });
@@ -483,7 +486,7 @@ impl eframe::App for ResignationDeleteApp {
                             
                             if self.failed_count > 0 {
                                 ui.horizontal(|ui| {
-                                    ui.label("娓呯悊澶辫触:");
+                                    ui.label("清理失败:");
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         ui.colored_label(egui::Color32::RED, self.failed_count.to_string());
                                     });
@@ -493,12 +496,12 @@ impl eframe::App for ResignationDeleteApp {
                     
                     ui.add_space(20.0);
                     
-                    // 鍏ㄩ€?鍙栨秷鎸夐挳
+                    // 全选/取消按钮
                     ui.horizontal(|ui| {
-                        if ui.button("鍏ㄩ€?).clicked() {
+                        if ui.button("全选").clicked() {
                             self.select_all(true);
                         }
-                        if ui.button("鍙栨秷鍏ㄩ€?).clicked() {
+                        if ui.button("取消全选").clicked() {
                             self.select_all(false);
                         }
                     });
@@ -506,18 +509,20 @@ impl eframe::App for ResignationDeleteApp {
                 
                 ui.separator();
                 
-                // 鍙充晶椤圭洰鍒楄〃
+                // 右侧项目列表
                 ui.vertical(|ui| {
                     self.draw_categories(ui);
                 });
             });
         });
 
-        // 纭瀵硅瘽妗?        if self.show_confirm_dialog {
+        // 确认对话框
+        if self.show_confirm_dialog {
             self.draw_confirm_dialog(ctx);
         }
         
-        // 缁撴灉瀵硅瘽妗?        if self.show_result_dialog {
+        // 结果对话框
+        if self.show_result_dialog {
             self.draw_result_dialog(ctx);
         }
     }
@@ -551,7 +556,8 @@ impl ResignationDeleteApp {
             self.scan_progress = (i as f32) / scanner_count;
             let scanned = scanner.scan();
             
-            // 鏇存柊瀵瑰簲鍒嗙被鐨勯」鐩姸鎬?            for data_item in scanned {
+            // 更新对应分类的项目状态
+            for data_item in scanned {
                 for category in &mut self.categories {
                     for item in &mut category.items {
                         if item.id == data_item.id || data_item.path.contains(&item.id) {
@@ -573,20 +579,21 @@ impl ResignationDeleteApp {
         self.logs.push(CleanLog {
             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             level: LogLevel::Info,
-            message: "鎵弿瀹屾垚".to_string(),
+            message: "扫描完成".to_string(),
             item_path: None,
         });
     }
 
     fn draw_categories(&mut self, ui: &mut egui::Ui) {
-        ui.heading("鍙竻鐞嗛」鐩?);
+        ui.heading("可清理项目");
         ui.separator();
         
         egui::ScrollArea::vertical().show(ui, |ui| {
             for cat_idx in 0..self.categories.len() {
                 let category = &mut self.categories[cat_idx];
                 
-                // 鍒嗙被鏍囬鏍?                let header_response = egui::CollapsingHeader::new(
+                // 分类标题栏
+                let header_response = egui::CollapsingHeader::new(
                     egui::RichText::new(format!("{} ({}/{})", 
                         category.name, 
                         category.selected_count, 
@@ -595,10 +602,11 @@ impl ResignationDeleteApp {
                 )
                 .default_open(category.expanded)
                 .show(ui, |ui| {
-                    // 鍒嗙被鍏ㄩ€夋寜閽?                    ui.horizontal(|ui| {
+                    // 分类全选按钮
+                    ui.horizontal(|ui| {
                         let all_selected = category.selected_count == category.total_count;
                         let mut select_all = all_selected;
-                        if ui.checkbox(&mut select_all, "鍏ㄩ€夋鍒嗙被").changed() {
+                        if ui.checkbox(&mut select_all, "全选此分类").changed() {
                             for item in &mut category.items {
                                 item.selected = select_all;
                             }
@@ -609,7 +617,7 @@ impl ResignationDeleteApp {
                     
                     ui.add_space(5.0);
                     
-                    // 椤圭洰鍒楄〃
+                    // 项目列表
                     for item_idx in 0..category.items.len() {
                         let item = &mut category.items[item_idx];
                         
@@ -621,10 +629,10 @@ impl ResignationDeleteApp {
                         };
                         
                         let risk_text = match item.risk_level {
-                            RiskLevel::Critical => "涓ラ噸",
-                            RiskLevel::High => "楂橀闄?,
-                            RiskLevel::Medium => "涓瓑",
-                            RiskLevel::Low => "浣庨闄?,
+                            RiskLevel::Critical => "严重",
+                            RiskLevel::High => "高风险",
+                            RiskLevel::Medium => "中等",
+                            RiskLevel::Low => "低风险",
                         };
                         
                         let bg_color = if item.selected {
@@ -650,18 +658,18 @@ impl ResignationDeleteApp {
                                             ui.label(egui::RichText::new(&item.name).strong());
                                             ui.colored_label(risk_color, format!("[{}]", risk_text));
                                             if item.scanned {
-                                                ui.colored_label(egui::Color32::GREEN, "宸插彂鐜?);
+                                                ui.colored_label(egui::Color32::GREEN, "已发现");
                                             }
                                         });
                                         
                                         ui.label(egui::RichText::new(&item.description).size(12.0).color(egui::Color32::DARK_GRAY));
                                         
                                         if item.scanned && item.size > 0 {
-                                            ui.label(egui::RichText::new(format!("璺緞: {} | 澶у皬: {}", 
+                                            ui.label(egui::RichText::new(format!("路径: {} | 大小: {}", 
                                                 item.path, Self::format_size(item.size)))
                                                 .size(11.0).color(egui::Color32::GRAY));
                                         } else {
-                                            ui.label(egui::RichText::new(format!("璺緞: {}", item.path))
+                                            ui.label(egui::RichText::new(format!("路径: {}", item.path))
                                                 .size(11.0).color(egui::Color32::GRAY));
                                         }
                                     });
@@ -687,7 +695,7 @@ impl ResignationDeleteApp {
     fn draw_confirm_dialog(&mut self, ctx: &egui::Context) {
         let mut should_close = false;
         
-        egui::Window::new("纭娓呯悊")
+        egui::Window::new("确认清理")
             .collapsible(false)
             .resizable(false)
             .fixed_size([450.0, 250.0])
@@ -697,13 +705,13 @@ impl ResignationDeleteApp {
                     ui.add_space(15.0);
                     ui.colored_label(
                         egui::Color32::RED,
-                        egui::RichText::new("鈿?璀﹀憡").size(24.0).strong()
+                        egui::RichText::new("⚠ 警告").size(24.0).strong()
                     );
                     ui.add_space(15.0);
-                    ui.label(egui::RichText::new("鍗冲皢姘镐箙鍒犻櫎浠ヤ笅鏁版嵁:").size(16.0));
+                    ui.label(egui::RichText::new("即将永久删除以下数据:").size(16.0));
                     ui.add_space(10.0);
                     
-                    // 鏄剧ず瑕佸垹闄ょ殑椤圭洰鍒楄〃
+                    // 显示要删除的项目列表
                     let mut delete_list = Vec::new();
                     for category in &self.categories {
                         for item in &category.items {
@@ -714,20 +722,20 @@ impl ResignationDeleteApp {
                     }
                     
                     for item_name in &delete_list {
-                        ui.label(egui::RichText::new(format!("鈥?{}", item_name)).size(14.0));
+                        ui.label(egui::RichText::new(format!("• {}", item_name)).size(14.0));
                     }
                     
                     ui.add_space(10.0);
-                    ui.label(egui::RichText::new(format!("鍏?{} 涓」鐩?, self.selected_items)).size(14.0).strong());
+                    ui.label(egui::RichText::new(format!("共 {} 个项目", self.selected_items)).size(14.0).strong());
                     ui.add_space(5.0);
-                    ui.label(egui::RichText::new("鍒犻櫎鍚庢棤娉曟仮澶嶏紒").size(14.0).color(egui::Color32::RED));
+                    ui.label(egui::RichText::new("删除后无法恢复！").size(14.0).color(egui::Color32::RED));
                     ui.add_space(20.0);
                     
                     ui.horizontal(|ui| {
                         let confirm_btn = ui.add_sized(
                             [130.0, 40.0],
                             egui::Button::new(
-                                egui::RichText::new("纭鍒犻櫎").size(16.0).strong()
+                                egui::RichText::new("确认删除").size(16.0).strong()
                             ).fill(egui::Color32::from_rgb(220, 53, 69))
                         );
                         if confirm_btn.clicked() {
@@ -738,7 +746,7 @@ impl ResignationDeleteApp {
                         ui.add_space(30.0);
                         
                         if ui.add_sized([130.0, 40.0], egui::Button::new(
-                            egui::RichText::new("鍙栨秷").size(16.0)
+                            egui::RichText::new("取消").size(16.0)
                         )).clicked() {
                             should_close = true;
                         }
@@ -754,7 +762,7 @@ impl ResignationDeleteApp {
     fn draw_result_dialog(&mut self, ctx: &egui::Context) {
         let mut should_close = false;
         
-        egui::Window::new("娓呯悊瀹屾垚")
+        egui::Window::new("清理完成")
             .collapsible(false)
             .resizable(false)
             .fixed_size([400.0, 200.0])
@@ -766,24 +774,24 @@ impl ResignationDeleteApp {
                     if self.failed_count == 0 {
                         ui.colored_label(
                             egui::Color32::GREEN,
-                            egui::RichText::new("娓呯悊鎴愬姛锛?).size(24.0).strong()
+                            egui::RichText::new("清理成功！").size(24.0).strong()
                         );
                     } else {
                         ui.colored_label(
                             egui::Color32::from_rgb(255, 140, 0),
-                            egui::RichText::new("娓呯悊瀹屾垚锛堥儴鍒嗗け璐ワ級").size(24.0).strong()
+                            egui::RichText::new("清理完成（部分失败）").size(24.0).strong()
                         );
                     }
                     
                     ui.add_space(20.0);
-                    ui.label(format!("鎴愬姛娓呯悊: {} 涓」鐩?, self.cleaned_count));
+                    ui.label(format!("成功清理: {} 个项目", self.cleaned_count));
                     if self.failed_count > 0 {
-                        ui.colored_label(egui::Color32::RED, format!("娓呯悊澶辫触: {} 涓」鐩?, self.failed_count));
+                        ui.colored_label(egui::Color32::RED, format!("清理失败: {} 个项目", self.failed_count));
                     }
                     ui.add_space(30.0);
                     
                     if ui.add_sized([120.0, 40.0], egui::Button::new(
-                        egui::RichText::new("纭畾").size(16.0)
+                        egui::RichText::new("确定").size(16.0)
                     )).clicked() {
                         should_close = true;
                     }
@@ -800,7 +808,8 @@ impl ResignationDeleteApp {
         self.cleaned_count = 0;
         self.failed_count = 0;
         
-        // 鏀堕泦閫変腑鐨勯」鐩?        let mut items_to_clean: Vec<DataItem> = Vec::new();
+        // 收集选中的项目
+        let mut items_to_clean: Vec<DataItem> = Vec::new();
         for category in &self.categories {
             for item in &category.items {
                 if item.selected && item.scanned {
@@ -827,7 +836,7 @@ impl ResignationDeleteApp {
             Ok(_) => {
                 self.cleaned_count = items_to_clean.len();
                 
-                // 鏍囪宸叉竻鐞嗙殑椤圭洰
+                // 标记已清理的项目
                 for category in &mut self.categories {
                     for item in &mut category.items {
                         if item.selected {
@@ -842,7 +851,7 @@ impl ResignationDeleteApp {
                 self.logs.push(CleanLog {
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     level: LogLevel::Info,
-                    message: format!("鎴愬姛娓呯悊 {} 涓」鐩?, self.cleaned_count),
+                    message: format!("成功清理 {} 个项目", self.cleaned_count),
                     item_path: None,
                 });
             }
@@ -851,7 +860,7 @@ impl ResignationDeleteApp {
                 self.logs.push(CleanLog {
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     level: LogLevel::Error,
-                    message: format!("娓呯悊澶辫触: {}", e),
+                    message: format!("清理失败: {}", e),
                     item_path: None,
                 });
             }
