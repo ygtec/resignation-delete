@@ -12,13 +12,14 @@ fn main() -> Result<(), eframe::Error> {
     simple_logger::init_with_level(log::Level::Info).ok();
     
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(1000.0, 700.0)),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1000.0, 700.0]),
         ..Default::default()
     };
     eframe::run_native(
         "Resignation Delete - 数据清理工具",
         options,
-        Box::new(|_cc| Box::<ResignationDeleteApp>::default()),
+        Box::new(|_cc| Ok(Box::<ResignationDeleteApp>::default())),
     )
 }
 
@@ -82,15 +83,12 @@ impl ResignationDeleteApp {
     fn draw_control_panel(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if ui.button("🔍 扫描系统").clicked() && !self.is_scanning {
-                self.is_scanning = true;
                 self.scanned_items.clear();
                 self.selected_items.clear();
                 
                 for scanner in &self.scanners {
                     self.scanned_items.extend(scanner.scan());
                 }
-                
-                self.is_scanning = false;
                 
                 self.logs.push(CleanLog {
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -180,7 +178,7 @@ impl ResignationDeleteApp {
                                 
                                 let risk_color = match item.risk_level {
                                     RiskLevel::Critical => egui::Color32::RED,
-                                    RiskLevel::High => egui::Color32::ORANGE,
+                                    RiskLevel::High => egui::Color32::from_rgb(255, 165, 0),
                                     RiskLevel::Medium => egui::Color32::YELLOW,
                                     RiskLevel::Low => egui::Color32::GREEN,
                                 };

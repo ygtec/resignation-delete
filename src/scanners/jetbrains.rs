@@ -26,12 +26,6 @@ impl Scanner for JetBrainsScanner {
                 self.scan_jetbrains_dir(&jetbrains_dir, &mut items);
             }
 
-            let old_jetbrains_dir = if cfg!(target_os = "windows") {
-                home_dir.join(".IntelliJIdea*")
-            } else {
-                home_dir.join(".IntelliJIdea*")
-            };
-
             items.extend(self.scan_legacy_jetbrains_dirs(&home_dir));
         }
 

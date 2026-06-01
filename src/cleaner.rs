@@ -12,6 +12,8 @@ use chrono::Local;
 pub enum CleanError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("Walkdir error: {0}")]
+    Walkdir(#[from] walkdir::Error),
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
     #[error("File not found: {0}")]
@@ -130,32 +132,33 @@ impl Cleaner {
         let mut success_count = 0;
         let mut fail_count = 0;
 
-        for task in &mut self.tasks {
-            task.status = CleanStatus::InProgress;
-            task.start_time = Some(std::time::SystemTime::now());
+        for i in 0..self.tasks.len() {
+            self.tasks[i].status = CleanStatus::InProgress;
+            self.tasks[i].start_time = Some(std::time::SystemTime::now());
+            let item_path = self.tasks[i].item.path.clone();
 
-            match self.clean_item(&task.item) {
+            match self.clean_item(&self.tasks[i].item) {
                 Ok(_) => {
-                    task.status = CleanStatus::Completed;
+                    self.tasks[i].status = CleanStatus::Completed;
                     success_count += 1;
                     self.log(
                         LogLevel::Info,
-                        format!("Successfully cleaned: {}", task.item.path),
-                        Some(task.item.path.clone()),
+                        format!("Successfully cleaned: {}", item_path),
+                        Some(item_path.clone()),
                     );
                 }
                 Err(e) => {
-                    task.status = CleanStatus::Failed(e.to_string());
+                    self.tasks[i].status = CleanStatus::Failed(e.to_string());
                     fail_count += 1;
                     self.log(
                         LogLevel::Error,
-                        format!("Failed to clean {}: {}", task.item.path, e),
-                        Some(task.item.path.clone()),
+                        format!("Failed to clean {}: {}", item_path, e),
+                        Some(item_path.clone()),
                     );
                 }
             }
 
-            task.end_time = Some(std::time::SystemTime::now());
+            self.tasks[i].end_time = Some(std::time::SystemTime::now());
         }
 
         self.log(
