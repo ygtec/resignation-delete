@@ -6,7 +6,6 @@ use scanners::{Scanner, git_ssh::GitSshScanner, browsers::BrowsersScanner, jetbr
 use cleaner::{Cleaner, CleanLog, LogLevel};
 use models::{DataItem, RiskLevel};
 use eframe::egui;
-use std::collections::HashSet;
 
 fn main() -> Result<(), eframe::Error> {
     simple_logger::init_with_level(log::Level::Info).ok();
@@ -809,7 +808,7 @@ impl ResignationDeleteApp {
                         id: item.id.clone(),
                         path: item.path.clone(),
                         data_type: models::DataType::Document,
-                        risk_level: item.risk_level.clone(),
+                        risk_level: item.risk_level,
                         size: item.size,
                         created_at: None,
                         modified_at: None,
