@@ -29,26 +29,31 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 fn configure_fonts(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    
-    fonts.font_data.insert(
-        "my_font".to_owned(),
-        egui::FontData::from_static(include_bytes!("C:/Windows/Fonts/segoeui.ttf")).into(),
-    );
-    
-    fonts
-        .families
-        .entry(egui::FontFamily::Proportional)
-        .or_default()
-        .insert(0, "my_font".to_owned());
-    
-    fonts
-        .families
-        .entry(egui::FontFamily::Monospace)
-        .or_default()
-        .push("my_font".to_owned());
-    
-    ctx.set_fonts(fonts);
+    #[cfg(target_os = "windows")]
+    {
+        let mut fonts = egui::FontDefinitions::default();
+        
+        if let Ok(font_data) = std::fs::read("C:/Windows/Fonts/segoeui.ttf") {
+            fonts.font_data.insert(
+                "my_font".to_owned(),
+                egui::FontData::from_owned(font_data).into(),
+            );
+            
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .insert(0, "my_font".to_owned());
+            
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .push("my_font".to_owned());
+            
+            ctx.set_fonts(fonts);
+        }
+    }
 }
 
 struct ResignationDeleteApp {
