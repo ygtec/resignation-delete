@@ -5,8 +5,6 @@ use chrono::Local;
 
 mod models;
 mod cleaner;
-mod scanner;
-mod coordinator;
 mod scanners;
 
 use models::{DataItem, DataType, RiskLevel};
@@ -679,8 +677,6 @@ fn setup_custom_style(ctx: &Context) {
     style.spacing.item_spacing = Vec2::new(8.0, 6.0);
     style.spacing.button_padding = Vec2::new(12.0, 6.0);
     style.spacing.window_margin = Margin::same(12.0);
-    style.spacing.window_rounding = Rounding::same(12.0);
-    style.spacing.scroll_bar_width = 8.0;
 
     style.visuals.widgets.active.rounding = Rounding::same(8.0);
     style.visuals.widgets.inactive.rounding = Rounding::same(8.0);
