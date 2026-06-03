@@ -1,5 +1,5 @@
 use eframe::{egui, App, CreationContext, Frame, NativeOptions, run_native};
-use egui::{Color32, Context, FontData, FontDefinitions, FontFamily, RichText, Rounding, Stroke, Style, Vec2, Visuals, Window, Button, ScrollArea, Separator, Ui, Layout, Align, Margin};
+use egui::{Color32, Context, FontData, FontDefinitions, FontFamily, RichText, Rounding, Stroke, Style, Vec2, Visuals, Window, Button, ScrollArea, Separator, Ui, Layout, Align, Margin, TextWrapMode};
 use std::time::SystemTime;
 use chrono::Local;
 
@@ -49,249 +49,300 @@ impl CategoryItem {
 
 pub struct Category {
     pub name: String,
-    pub emoji: String,
+    pub icon: String,
     pub color: Color32,
     pub items: Vec<CategoryItem>,
     pub expanded: bool,
 }
 
-impl Category {
-    pub fn new(name: &str, emoji: &str, color: Color32, items: Vec<CategoryItem>) -> Self {
+pub struct ResignationApp {
+    current_tab: Tab,
+    categories: Vec<Category>,
+    cleaner: Cleaner,
+    tasks: Vec<CleanTask>,
+    is_scanning: bool,
+    scan_progress: f64,
+    scan_complete: bool,
+    total_selected_size: u64,
+    total_item_count: usize,
+    selected_item_count: usize,
+    show_confirm_dialog: bool,
+    show_success_dialog: bool,
+    success_count: usize,
+    fail_count: usize,
+    cleanup_started: bool,
+}
+
+impl ResignationApp {
+    pub fn new(cc: &CreationContext) -> Self {
         Self {
-            name: name.to_string(),
-            emoji: emoji.to_string(),
-            color,
+            current_tab: Tab::Cleanup,
+            categories: Self::create_default_categories(),
+            cleaner: Cleaner::new(),
+            tasks: vec![],
+            is_scanning: false,
+            scan_progress: 0.0,
+            scan_complete: false,
+            total_selected_size: 0,
+            total_item_count: 0,
+            selected_item_count: 0,
+            show_confirm_dialog: false,
+            show_success_dialog: false,
+            success_count: 0,
+            fail_count: 0,
+            cleanup_started: false,
+        }
+    }
+
+    fn create_default_categories() -> Vec<Category> {
+        vec![
+            Self::create_dev_tools_category(),
+            Self::create_browsers_category(),
+            Self::create_ai_tools_category(),
+            Self::create_office_category(),
+        ]
+    }
+
+    fn create_dev_tools_category() -> Category {
+        let items = vec![
+            CategoryItem::new("vscode", "VSCode", "Visual Studio Code 用户数据", "~/.vscode/", 50_000_000, RiskLevel::High),
+            CategoryItem::new("intellij", "IntelliJ IDEA", "JetBrains IDE 用户数据", "~/.config/JetBrains/IntelliJIdea/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("pycharm", "PyCharm", "Python IDE 用户数据", "~/.config/JetBrains/PyCharm/", 75_000_000, RiskLevel::High),
+            CategoryItem::new("webstorm", "WebStorm", "Web IDE 用户数据", "~/.config/JetBrains/WebStorm/", 60_000_000, RiskLevel::High),
+            CategoryItem::new("vscode-ext", "VSCode 扩展", "VSCode 扩展数据", "~/.vscode/extensions/", 150_000_000, RiskLevel::Medium),
+            CategoryItem::new("node-modules", "Node Modules", "Node.js 依赖", "~/node_modules/", 200_000_000, RiskLevel::Low),
+            CategoryItem::new("npm-cache", "npm Cache", "npm 缓存", "~/.npm/", 50_000_000, RiskLevel::Low),
+            CategoryItem::new("yarn-cache", "yarn Cache", "yarn 缓存", "~/.cache/yarn/", 40_000_000, RiskLevel::Low),
+            CategoryItem::new("pnpm-cache", "pnpm Cache", "pnpm 缓存", "~/.local/share/pnpm/", 60_000_000, RiskLevel::Low),
+            CategoryItem::new("cargo-cache", "Cargo Cache", "Rust 依赖缓存", "~/.cargo/registry/", 300_000_000, RiskLevel::Low),
+            CategoryItem::new("rustup", "Rustup", "Rust 工具链", "~/.rustup/", 500_000_000, RiskLevel::Low),
+            CategoryItem::new("go-modules", "Go Modules", "Go 依赖", "~/go/pkg/mod/", 150_000_000, RiskLevel::Low),
+            CategoryItem::new("gradle-cache", "Gradle Cache", "Gradle 缓存", "~/.gradle/caches/", 100_000_000, RiskLevel::Low),
+            CategoryItem::new("maven-cache", "Maven Cache", "Maven 仓库", "~/.m2/repository/", 75_000_000, RiskLevel::Low),
+            CategoryItem::new("docker", "Docker", "Docker 镜像和容器", "~/.docker/", 500_000_000, RiskLevel::Medium),
+            CategoryItem::new("git-config", "Git Config", "Git 全局配置", "~/.gitconfig", 4_096, RiskLevel::High),
+            CategoryItem::new("ssh-keys", "SSH Keys", "SSH 私钥", "~/.ssh/", 16_384, RiskLevel::Critical),
+            CategoryItem::new("gnupg", "GNUPG", "GPG 密钥", "~/.gnupg/", 32_768, RiskLevel::High),
+            CategoryItem::new("aws-cli", "AWS CLI", "AWS 凭证", "~/.aws/", 8_192, RiskLevel::Critical),
+            CategoryItem::new("google-cloud", "Google Cloud", "GCP 凭证", "~/.config/gcloud/", 16_384, RiskLevel::Critical),
+            CategoryItem::new("azure-cli", "Azure CLI", "Azure 凭证", "~/.azure/", 8_192, RiskLevel::Critical),
+            CategoryItem::new("docker-config", "Docker Config", "Docker 配置", "~/.docker/config.json", 4_096, RiskLevel::High),
+            CategoryItem::new("kube-config", "Kubernetes", "K8s 配置", "~/.kube/config", 4_096, RiskLevel::High),
+            CategoryItem::new("terraform", "Terraform", "TF 状态文件", "~/.terraform.d/", 8_192, RiskLevel::Medium),
+            CategoryItem::new("github-desktop", "GitHub Desktop", "GitHub Desktop 数据", "~/AppData/Local/GitHubDesktop/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("sourcetree", "SourceTree", "SourceTree 配置", "~/AppData/Local/Atlassian/SourceTree/", 20_000_000, RiskLevel::Medium),
+            CategoryItem::new("gitkraken", "GitKraken", "GitKraken 配置", "~/AppData/Local/gitkraken/", 30_000_000, RiskLevel::Medium),
+            CategoryItem::new("android-studio", "Android Studio", "Android Studio 配置", "~/.android/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("xcode", "Xcode", "Xcode 派生数据", "~/Library/Developer/Xcode/DerivedData/", 500_000_000, RiskLevel::Medium),
+            CategoryItem::new("cocoapods", "CocoaPods", "CocoaPods 缓存", "~/.cocoapods/", 200_000_000, RiskLevel::Low),
+            CategoryItem::new("ruby-gems", "Ruby Gems", "Ruby 依赖", "~/.gem/", 50_000_000, RiskLevel::Low),
+            CategoryItem::new("composer", "Composer", "PHP 依赖", "~/.composer/", 30_000_000, RiskLevel::Low),
+        ];
+        Category {
+            name: "开发工具".to_string(),
+            icon: "💻".to_string(),
+            color: Color32::from_rgb(0, 122, 204),
             items,
             expanded: true,
         }
     }
-}
 
-pub struct ResignationApp {
-    pub current_tab: Tab,
-    pub categories: Vec<Category>,
-    pub selected_count: usize,
-    pub total_size: u64,
-    pub show_confirm_dialog: bool,
-    pub show_result_dialog: bool,
-    pub cleanup_result: Option<String>,
-    pub logs: Vec<CleanLog>,
-    pub cleaner: Cleaner,
-    pub scan_in_progress: bool,
-    pub scan_progress: f32,
-    pub overwrite_passes: u8,
-    pub dark_mode: bool,
-}
-
-impl ResignationApp {
-    pub fn new(_cc: &CreationContext<'_>) -> Self {
-        let mut app = Self {
-            current_tab: Tab::Cleanup,
-            categories: Self::initialize_categories(),
-            selected_count: 0,
-            total_size: 0,
-            show_confirm_dialog: false,
-            show_result_dialog: false,
-            cleanup_result: None,
-            logs: Vec::new(),
-            cleaner: Cleaner::new(),
-            scan_in_progress: false,
-            scan_progress: 0.0,
-            overwrite_passes: 3,
-            dark_mode: true,
-        };
-        app.update_selected_count();
-        app
+    fn create_browsers_category() -> Category {
+        let items = vec![
+            CategoryItem::new("chrome", "Chrome", "Google Chrome 浏览器数据", "~/AppData/Local/Google/Chrome/", 200_000_000, RiskLevel::High),
+            CategoryItem::new("edge", "Edge", "Microsoft Edge 浏览器数据", "~/AppData/Local/Microsoft/Edge/", 150_000_000, RiskLevel::High),
+            CategoryItem::new("firefox", "Firefox", "Mozilla Firefox 浏览器数据", "~/AppData/Roaming/Mozilla/Firefox/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("safari", "Safari", "Safari 浏览器数据", "~/Library/Safari/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("opera", "Opera", "Opera 浏览器数据", "~/AppData/Roaming/Opera Software/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("brave", "Brave", "Brave 浏览器数据", "~/AppData/Local/BraveSoftware/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("vivaldi", "Vivaldi", "Vivaldi 浏览器数据", "~/AppData/Local/Vivaldi/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("qq-browser", "QQ浏览器", "QQ浏览器数据", "~/AppData/Local/Tencent/QQBrowser/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("360-browser", "360安全浏览器", "360浏览器数据", "~/AppData/Local/360Chrome/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("360-speed", "360极速浏览器", "360极速浏览器数据", "~/AppData/Local/360se6/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("sogou", "搜狗浏览器", "搜狗浏览器数据", "~/AppData/Roaming/SogouExplorer/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("uc", "UC浏览器", "UC浏览器数据", "~/AppData/Local/UCBrowser/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("maxthon", "傲游浏览器", "傲游浏览器数据", "~/AppData/Roaming/Maxthon5/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("cent", "百分浏览器", "CentBrowser数据", "~/AppData/Local/CentBrowser/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("yandex", "Yandex", "Yandex浏览器数据", "~/AppData/Local/Yandex/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("tor", "Tor Browser", "Tor浏览器数据", "~/AppData/Roaming/Tor Browser/", 50_000_000, RiskLevel::Critical),
+            CategoryItem::new("waterfox", "Waterfox", "Waterfox浏览器数据", "~/AppData/Roaming/Waterfox/", 80_000_000, RiskLevel::High),
+            CategoryItem::new("pale-moon", "Pale Moon", "Pale Moon浏览器数据", "~/AppData/Roaming/Pale Moon/", 60_000_000, RiskLevel::High),
+            CategoryItem::new("seamonkey", "SeaMonkey", "SeaMonkey浏览器数据", "~/AppData/Roaming/Mozilla/SeaMonkey/", 60_000_000, RiskLevel::High),
+            CategoryItem::new("thor", "雷神浏览器", "跨境电商浏览器", "~/AppData/Local/ThorBrowser/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("adspower", "AdsPower", "AdsPower指纹浏览器", "~/AppData/Local/AdsPower/", 150_000_000, RiskLevel::Critical),
+            CategoryItem::new("multilogin", "Multilogin", "Multilogin指纹浏览器", "~/AppData/Local/Multilogin/", 150_000_000, RiskLevel::Critical),
+            CategoryItem::new("lalicat", "拉力猫", "拉力猫指纹浏览器", "~/AppData/Local/Lalicat/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("ixbrowser", "ixBrowser", "ixBrowser指纹浏览器", "~/AppData/Local/ixBrowser/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("vmlogin", "VMLogin", "VMLogin指纹浏览器", "~/AppData/Local/VMLogin/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("hubstudio", "HubStudio", "HubStudio指纹浏览器", "~/AppData/Local/HubStudio/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("dolphin", "Dolphin", "Dolphin指纹浏览器", "~/AppData/Local/Dolphin/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("morelogin", "MoreLogin", "MoreLogin指纹浏览器", "~/AppData/Local/MoreLogin/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("gologin", "GoLogin", "GoLogin指纹浏览器", "~/AppData/Local/GoLogin/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("incogniton", "Incogniton", "Incogniton指纹浏览器", "~/AppData/Local/Incogniton/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("clonbrowser", "ClonBrowser", "ClonBrowser指纹浏览器", "~/AppData/Local/ClonBrowser/", 100_000_000, RiskLevel::Critical),
+            CategoryItem::new("octobrowser", "Octo Browser", "OctoBrowser指纹浏览器", "~/AppData/Local/OctoBrowser/", 100_000_000, RiskLevel::Critical),
+        ];
+        Category {
+            name: "浏览器".to_string(),
+            icon: "🌐".to_string(),
+            color: Color32::from_rgb(0, 188, 212),
+            items,
+            expanded: true,
+        }
     }
 
-    fn initialize_categories() -> Vec<Category> {
-        let dev_color = Color32::from_rgb(59, 130, 246);
-        let browser_color = Color32::from_rgb(34, 197, 94);
-        let ai_color = Color32::from_rgb(168, 85, 247);
-        let office_color = Color32::from_rgb(249, 115, 22);
-
-        vec![
-            Category::new("开发工具", "💻", dev_color, Self::dev_tools_items()),
-            Category::new("浏览器", "🌐", browser_color, Self::browser_items()),
-            Category::new("AI工具", "🤖", ai_color, Self::ai_tools_items()),
-            Category::new("办公软件", "📊", office_color, Self::office_items()),
-        ]
+    fn create_ai_tools_category() -> Category {
+        let items = vec![
+            CategoryItem::new("cursor", "Cursor", "Cursor AI 编辑器", "~/AppData/Roaming/Cursor/", 50_000_000, RiskLevel::High),
+            CategoryItem::new("claude", "Claude Desktop", "Claude 桌面应用", "~/AppData/Roaming/Claude/", 30_000_000, RiskLevel::High),
+            CategoryItem::new("github-copilot", "GitHub Copilot", "Copilot 扩展", "~/.config/github-copilot/", 10_000_000, RiskLevel::High),
+            CategoryItem::new("kimi", "Kimi", "Kimi AI 助手", "~/AppData/Roaming/Kimi/", 20_000_000, RiskLevel::Medium),
+            CategoryItem::new("qwen", "通义千问", "通义千问配置", "~/AppData/Roaming/Qwen/", 20_000_000, RiskLevel::Medium),
+            CategoryItem::new("opencode", "OpenCode", "OpenCode AI编程助手", "~/AppData/Roaming/OpenCode/", 30_000_000, RiskLevel::High),
+            CategoryItem::new("trae", "Trae", "Trae AI 编辑器", "~/AppData/Roaming/Trae/", 30_000_000, RiskLevel::High),
+            CategoryItem::new("chatgpt", "ChatGPT Desktop", "ChatGPT桌面应用", "~/AppData/Roaming/ChatGPT/", 30_000_000, RiskLevel::High),
+            CategoryItem::new("perplexity", "Perplexity", "Perplexity AI配置", "~/AppData/Roaming/Perplexity/", 10_000_000, RiskLevel::Medium),
+            CategoryItem::new("notion-ai", "Notion AI", "Notion AI配置", "~/AppData/Roaming/Notion/", 20_000_000, RiskLevel::Medium),
+            CategoryItem::new("midjourney", "Midjourney", "Midjourney配置", "~/AppData/Roaming/Midjourney/", 10_000_000, RiskLevel::Low),
+            CategoryItem::new("stable-diffusion", "Stable Diffusion", "SD本地模型", "~/stable-diffusion/", 2_000_000_000, RiskLevel::Low),
+            CategoryItem::new("comfyui", "ComfyUI", "ComfyUI工作流", "~/ComfyUI/", 500_000_000, RiskLevel::Low),
+            CategoryItem::new("fooocus", "Fooocus", "Fooocus配置", "~/Fooocus/", 500_000_000, RiskLevel::Low),
+            CategoryItem::new("ollama", "Ollama", "Ollama本地模型", "~/.ollama/", 5_000_000_000, RiskLevel::Low),
+            CategoryItem::new("lm-studio", "LM Studio", "LM Studio配置", "~/AppData/Roaming/LM Studio/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("gpt4all", "GPT4All", "GPT4All模型", "~/AppData/Roaming/GPT4All/", 500_000_000, RiskLevel::Low),
+            CategoryItem::new("jan", "Jan", "Jan AI运行器", "~/AppData/Roaming/Jan/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("anythingllm", "AnythingLLM", "AnythingLLM知识库", "~/AppData/Roaming/AnythingLLM/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("continue", "Continue", "Continue AI编程", "~/.continue/", 10_000_000, RiskLevel::High),
+            CategoryItem::new("tabnine", "Tabnine", "Tabnine代码补全", "~/.tabnine/", 10_000_000, RiskLevel::Medium),
+            CategoryItem::new("codeium", "Codeium", "Codeium代码补全", "~/.codeium/", 10_000_000, RiskLevel::Medium),
+            CategoryItem::new("codewhisperer", "CodeWhisperer", "Amazon代码补全", "~/.aws/codewhisperer/", 5_000_000, RiskLevel::Medium),
+            CategoryItem::new("replit", "Replit", "Replit在线IDE", "~/AppData/Roaming/Replit/", 10_000_000, RiskLevel::Low),
+            CategoryItem::new("codepen", "CodePen", "CodePen编辑器", "~/AppData/Roaming/CodePen/", 10_000_000, RiskLevel::Low),
+            CategoryItem::new("stackblitz", "StackBlitz", "StackBlitz IDE", "~/AppData/Roaming/StackBlitz/", 10_000_000, RiskLevel::Low),
+            CategoryItem::new("codesandbox", "CodeSandbox", "CodeSandbox IDE", "~/AppData/Roaming/CodeSandbox/", 10_000_000, RiskLevel::Low),
+            CategoryItem::new("huggingface", "Hugging Face", "HF模型和令牌", "~/.huggingface/", 1_000_000_000, RiskLevel::High),
+            CategoryItem::new("openai-api", "OpenAI API", "OpenAI API密钥", "~/.openai/", 4_096, RiskLevel::Critical),
+            CategoryItem::new("anthropic-api", "Anthropic API", "Anthropic API密钥", "~/.anthropic/", 4_096, RiskLevel::Critical),
+            CategoryItem::new("google-ai", "Google AI", "Google AI Studio", "~/.google-ai/", 4_096, RiskLevel::Critical),
+            CategoryItem::new("cohere", "Cohere", "Cohere API配置", "~/.cohere/", 4_096, RiskLevel::Critical),
+        ];
+        Category {
+            name: "AI 工具".to_string(),
+            icon: "🤖".to_string(),
+            color: Color32::from_rgb(156, 39, 176),
+            items,
+            expanded: true,
+        }
     }
 
-    fn dev_tools_items() -> Vec<CategoryItem> {
-        vec![
-            CategoryItem::new("dev1", "VSCode", "Visual Studio Code 编辑器配置", "~/.vscode", 52428800, RiskLevel::Medium),
-            CategoryItem::new("dev2", "IntelliJ IDEA", "JetBrains IDE 配置与缓存", "~/.IntelliJIdea*", 104857600, RiskLevel::Medium),
-            CategoryItem::new("dev3", "PyCharm", "Python IDE 配置与缓存", "~/.PyCharm*", 78643200, RiskLevel::Medium),
-            CategoryItem::new("dev4", "WebStorm", "Web IDE 配置与缓存", "~/.WebStorm*", 62914560, RiskLevel::Medium),
-            CategoryItem::new("dev5", "VSCode Extensions", "VSCode 扩展插件", "~/.vscode/extensions", 157286400, RiskLevel::Low),
-            CategoryItem::new("dev6", "Node Modules", "Node.js 依赖包缓存", "~/node_modules", 209715200, RiskLevel::Low),
-            CategoryItem::new("dev7", "npm Cache", "npm 包管理器缓存", "~/.npm", 52428800, RiskLevel::Low),
-            CategoryItem::new("dev8", "yarn Cache", "yarn 包管理器缓存", "~/.yarn", 41943040, RiskLevel::Low),
-            CategoryItem::new("dev9", "pnpm Cache", "pnpm 包管理器缓存", "~/.pnpm-store", 62914560, RiskLevel::Low),
-            CategoryItem::new("dev10", "Cargo Cache", "Rust 包管理器缓存", "~/.cargo", 314572800, RiskLevel::Low),
-            CategoryItem::new("dev11", "Rustup", "Rust 工具链", "~/.rustup", 524288000, RiskLevel::Low),
-            CategoryItem::new("dev12", "Go Modules", "Go 依赖缓存", "~/go/pkg/mod", 157286400, RiskLevel::Low),
-            CategoryItem::new("dev13", "Gradle Cache", "Gradle 构建缓存", "~/.gradle", 104857600, RiskLevel::Low),
-            CategoryItem::new("dev14", "Maven Cache", "Maven 依赖缓存", "~/.m2", 78643200, RiskLevel::Low),
-            CategoryItem::new("dev15", "Docker", "Docker 容器与镜像数据", "~/.docker", 524288000, RiskLevel::High),
-            CategoryItem::new("dev16", "Git Config", "Git 全局配置文件", "~/.gitconfig", 4096, RiskLevel::Critical),
-            CategoryItem::new("dev17", "SSH Keys", "SSH 私钥与配置", "~/.ssh", 16384, RiskLevel::Critical),
-            CategoryItem::new("dev18", "GNUPG", "GPG 密钥与配置", "~/.gnupg", 32768, RiskLevel::Critical),
-            CategoryItem::new("dev19", "AWS CLI", "AWS 命令行配置", "~/.aws", 8192, RiskLevel::Critical),
-            CategoryItem::new("dev20", "Azure CLI", "Azure 命令行配置", "~/.azure", 8192, RiskLevel::Critical),
-            CategoryItem::new("dev21", "gcloud", "Google Cloud 配置", "~/.config/gcloud", 16384, RiskLevel::Critical),
-            CategoryItem::new("dev22", "kubectl", "Kubernetes 配置", "~/.kube", 8192, RiskLevel::Critical),
-            CategoryItem::new("dev23", "Terraform", "Terraform 状态与配置", "~/.terraform.d", 32768, RiskLevel::High),
-            CategoryItem::new("dev24", "Vagrant", "Vagrant 虚拟机配置", "~/.vagrant.d", 104857600, RiskLevel::Medium),
-            CategoryItem::new("dev25", "VirtualBox", "VirtualBox 虚拟机", "~/VirtualBox VMs", 1073741824, RiskLevel::Medium),
-            CategoryItem::new("dev26", "VMware", "VMware 虚拟机", "~/Documents/Virtual Machines", 2147483648, RiskLevel::Medium),
-            CategoryItem::new("dev27", "Parallels", "Parallels 虚拟机", "~/Parallels", 1073741824, RiskLevel::Medium),
-            CategoryItem::new("dev28", "Xcode", "Xcode 开发者工具数据", "~/Library/Developer/Xcode", 524288000, RiskLevel::Medium),
-            CategoryItem::new("dev29", "Android SDK", "Android 开发工具包", "~/Android/Sdk", 1073741824, RiskLevel::Medium),
-            CategoryItem::new("dev30", "Flutter", "Flutter SDK 与缓存", "~/flutter", 314572800, RiskLevel::Low),
-            CategoryItem::new("dev31", "Dart", "Dart 包缓存", "~/.pub-cache", 52428800, RiskLevel::Low),
-            CategoryItem::new("dev32", "Unity", "Unity 编辑器配置", "~/Library/Unity", 262144000, RiskLevel::Medium),
-        ]
+    fn create_office_category() -> Category {
+        let items = vec![
+            CategoryItem::new("wps", "WPS Office", "WPS用户数据", "~/AppData/Local/Kingsoft/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("wechat", "微信", "微信聊天记录", "~/Documents/WeChat Files/", 500_000_000, RiskLevel::Critical),
+            CategoryItem::new("qq", "QQ", "QQ聊天记录", "~/Documents/Tencent Files/", 300_000_000, RiskLevel::Critical),
+            CategoryItem::new("dingtalk", "钉钉", "钉钉聊天记录", "~/AppData/Roaming/DingTalk/", 200_000_000, RiskLevel::Critical),
+            CategoryItem::new("feishu", "飞书", "飞书聊天记录", "~/AppData/Roaming/Feishu/", 200_000_000, RiskLevel::Critical),
+            CategoryItem::new("lark", "Lark", "Lark聊天记录", "~/AppData/Roaming/Lark/", 200_000_000, RiskLevel::Critical),
+            CategoryItem::new("office", "Microsoft Office", "Office缓存", "~/AppData/Local/Microsoft/Office/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("wxwork", "企业微信", "企业微信数据", "~/Documents/WXWork/", 300_000_000, RiskLevel::Critical),
+            CategoryItem::new("tim", "TIM", "TIM聊天记录", "~/Documents/TIM/", 200_000_000, RiskLevel::Critical),
+            CategoryItem::new("rtx", "腾讯通RTX", "RTX聊天记录", "~/AppData/Roaming/RTXC/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("teams", "Microsoft Teams", "Teams聊天记录", "~/AppData/Roaming/Microsoft/Teams/", 200_000_000, RiskLevel::Critical),
+            CategoryItem::new("slack", "Slack", "Slack聊天记录", "~/AppData/Roaming/Slack/", 150_000_000, RiskLevel::High),
+            CategoryItem::new("discord", "Discord", "Discord缓存", "~/AppData/Roaming/discord/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("zoom", "Zoom", "Zoom会议记录", "~/AppData/Roaming/Zoom/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("tencent-meeting", "腾讯会议", "腾讯会议记录", "~/AppData/Roaming/Tencent/WeMeet/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("dingtalk-meeting", "钉钉会议", "钉钉会议记录", "~/AppData/Roaming/DingTalk/Meeting/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("skype", "Skype", "Skype聊天记录", "~/AppData/Roaming/Skype/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("telegram", "Telegram", "Telegram聊天记录", "~/AppData/Roaming/Telegram Desktop/", 200_000_000, RiskLevel::High),
+            CategoryItem::new("whatsapp", "WhatsApp", "WhatsApp备份", "~/AppData/Roaming/WhatsApp/", 200_000_000, RiskLevel::High),
+            CategoryItem::new("line", "LINE", "LINE聊天记录", "~/AppData/Roaming/LINE/", 150_000_000, RiskLevel::High),
+            CategoryItem::new("evernote", "印象笔记", "印象笔记数据", "~/AppData/Roaming/Evernote/", 100_000_000, RiskLevel::High),
+            CategoryItem::new("yuque", "语雀", "语雀文档", "~/AppData/Roaming/Yuque/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("shimo", "石墨文档", "石墨文档", "~/AppData/Roaming/Shimo/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("tencent-docs", "腾讯文档", "腾讯文档", "~/AppData/Roaming/TencentDocs/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("baidu-cloud", "百度网盘", "百度网盘配置", "~/AppData/Roaming/baidu/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("aliyun-drive", "阿里云盘", "阿里云盘配置", "~/AppData/Local/aDrive/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("onedrive", "OneDrive", "OneDrive同步", "~/AppData/Local/Microsoft/OneDrive/", 100_000_000, RiskLevel::Medium),
+            CategoryItem::new("google-drive", "Google Drive", "Google Drive", "~/AppData/Local/Google/Drive/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("dropbox", "Dropbox", "Dropbox同步", "~/AppData/Roaming/Dropbox/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("jianguoyun", "坚果云", "坚果云同步", "~/AppData/Roaming/Nutstore/", 50_000_000, RiskLevel::Medium),
+            CategoryItem::new("tianyi", "天翼云盘", "天翼云盘", "~/AppData/Roaming/21cn/", 30_000_000, RiskLevel::Medium),
+            CategoryItem::new("hecaiyun", "和彩云", "和彩云", "~/AppData/Roaming/139/", 30_000_000, RiskLevel::Medium),
+        ];
+        Category {
+            name: "办公软件".to_string(),
+            icon: "📊".to_string(),
+            color: Color32::from_rgb(76, 175, 80),
+            items,
+            expanded: true,
+        }
     }
 
-    fn browser_items() -> Vec<CategoryItem> {
-        vec![
-            CategoryItem::new("browser1", "Chrome", "Google Chrome 浏览器数据", "~/AppData/Local/Google/Chrome", 262144000, RiskLevel::High),
-            CategoryItem::new("browser2", "Chrome History", "Chrome 浏览历史", "~/AppData/Local/Google/Chrome/User Data/Default/History", 10485760, RiskLevel::Critical),
-            CategoryItem::new("browser3", "Chrome Cookies", "Chrome Cookie 数据", "~/AppData/Local/Google/Chrome/User Data/Default/Cookies", 5242880, RiskLevel::Critical),
-            CategoryItem::new("browser4", "Chrome Passwords", "Chrome 保存的密码", "~/AppData/Local/Google/Chrome/User Data/Default/Login Data", 2097152, RiskLevel::Critical),
-            CategoryItem::new("browser5", "Edge", "Microsoft Edge 浏览器数据", "~/AppData/Local/Microsoft/Edge", 209715200, RiskLevel::High),
-            CategoryItem::new("browser6", "Edge History", "Edge 浏览历史", "~/AppData/Local/Microsoft/Edge/User Data/Default/History", 10485760, RiskLevel::Critical),
-            CategoryItem::new("browser7", "Edge Cookies", "Edge Cookie 数据", "~/AppData/Local/Microsoft/Edge/User Data/Default/Cookies", 5242880, RiskLevel::Critical),
-            CategoryItem::new("browser8", "Edge Passwords", "Edge 保存的密码", "~/AppData/Local/Microsoft/Edge/User Data/Default/Login Data", 2097152, RiskLevel::Critical),
-            CategoryItem::new("browser9", "Firefox", "Mozilla Firefox 浏览器数据", "~/AppData/Roaming/Mozilla/Firefox", 157286400, RiskLevel::High),
-            CategoryItem::new("browser10", "Firefox History", "Firefox 浏览历史", "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/places.sqlite", 10485760, RiskLevel::Critical),
-            CategoryItem::new("browser11", "Firefox Cookies", "Firefox Cookie 数据", "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite", 5242880, RiskLevel::Critical),
-            CategoryItem::new("browser12", "Firefox Passwords", "Firefox 保存的密码", "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/logins.json", 2097152, RiskLevel::Critical),
-            CategoryItem::new("browser13", "Safari", "Apple Safari 浏览器数据", "~/Library/Safari", 104857600, RiskLevel::High),
-            CategoryItem::new("browser14", "Safari History", "Safari 浏览历史", "~/Library/Safari/History.db", 10485760, RiskLevel::Critical),
-            CategoryItem::new("browser15", "Opera", "Opera 浏览器数据", "~/AppData/Roaming/Opera Software", 157286400, RiskLevel::High),
-            CategoryItem::new("browser16", "Opera GX", "Opera GX 浏览器数据", "~/AppData/Roaming/Opera Software/Opera GX Stable", 157286400, RiskLevel::High),
-            CategoryItem::new("browser17", "Brave", "Brave 浏览器数据", "~/AppData/Local/BraveSoftware/Brave-Browser", 209715200, RiskLevel::High),
-            CategoryItem::new("browser18", "Vivaldi", "Vivaldi 浏览器数据", "~/AppData/Local/Vivaldi", 157286400, RiskLevel::High),
-            CategoryItem::new("browser19", "Tor Browser", "Tor 浏览器数据", "~/Desktop/Tor Browser", 104857600, RiskLevel::Critical),
-            CategoryItem::new("browser20", "Chrome Dev", "Chrome 开发者版本数据", "~/AppData/Local/Google/Chrome Dev", 262144000, RiskLevel::High),
-            CategoryItem::new("browser21", "Chrome Beta", "Chrome 测试版本数据", "~/AppData/Local/Google/Chrome Beta", 262144000, RiskLevel::High),
-            CategoryItem::new("browser22", "Chrome Canary", "Chrome 金丝雀版本数据", "~/AppData/Local/Google/Chrome SxS", 262144000, RiskLevel::High),
-            CategoryItem::new("browser23", "Firefox Dev", "Firefox 开发者版本", "~/AppData/Roaming/Mozilla/Firefox/Dev", 157286400, RiskLevel::High),
-            CategoryItem::new("browser24", "Firefox Nightly", "Firefox 每夜构建版本", "~/AppData/Roaming/Mozilla/Firefox/Nightly", 157286400, RiskLevel::High),
-            CategoryItem::new("browser25", "Waterfox", "Waterfox 浏览器数据", "~/AppData/Roaming/Waterfox", 157286400, RiskLevel::High),
-            CategoryItem::new("browser26", "Pale Moon", "Pale Moon 浏览器数据", "~/AppData/Roaming/Moonchild Productions", 157286400, RiskLevel::High),
-            CategoryItem::new("browser27", "SeaMonkey", "SeaMonkey 浏览器数据", "~/AppData/Roaming/Mozilla/SeaMonkey", 157286400, RiskLevel::High),
-            CategoryItem::new("browser28", "Maxthon", "傲游浏览器数据", "~/AppData/Roaming/Maxthon", 104857600, RiskLevel::High),
-            CategoryItem::new("browser29", "360 Safe", "360安全浏览器数据", "~/AppData/Roaming/360se6", 104857600, RiskLevel::High),
-            CategoryItem::new("browser30", "QQ Browser", "QQ浏览器数据", "~/AppData/Roaming/Tencent/QQBrowser", 104857600, RiskLevel::High),
-            CategoryItem::new("browser31", "UC Browser", "UC浏览器数据", "~/AppData/Local/UCBrowser", 104857600, RiskLevel::High),
-            CategoryItem::new("browser32", "Sogou", "搜狗浏览器数据", "~/AppData/Roaming/SogouExplorer", 104857600, RiskLevel::High),
-        ]
+    fn format_size(size: u64) -> String {
+        if size >= 1_000_000_000 {
+            format!("{:.2} GB", size as f64 / 1_000_000_000.0)
+        } else if size >= 1_000_000 {
+            format!("{:.2} MB", size as f64 / 1_000_000.0)
+        } else if size >= 1_000 {
+            format!("{:.2} KB", size as f64 / 1_000.0)
+        } else {
+            format!("{} B", size)
+        }
     }
 
-    fn ai_tools_items() -> Vec<CategoryItem> {
-        vec![
-            CategoryItem::new("ai1", "Cursor", "Cursor AI 编辑器配置", "~/.cursor", 52428800, RiskLevel::High),
-            CategoryItem::new("ai2", "Cursor Cache", "Cursor AI 缓存数据", "~/AppData/Roaming/Cursor", 104857600, RiskLevel::High),
-            CategoryItem::new("ai3", "Claude", "Anthropic Claude 配置", "~/.claude", 26214400, RiskLevel::High),
-            CategoryItem::new("ai4", "Claude Desktop", "Claude 桌面应用数据", "~/AppData/Roaming/Claude", 52428800, RiskLevel::High),
-            CategoryItem::new("ai5", "ChatGPT", "OpenAI ChatGPT 桌面应用", "~/AppData/Roaming/ChatGPT", 52428800, RiskLevel::High),
-            CategoryItem::new("ai6", "GitHub Copilot", "GitHub Copilot AI 助手", "~/.github-copilot", 26214400, RiskLevel::High),
-            CategoryItem::new("ai7", "Copilot VSCode", "VSCode Copilot 扩展", "~/.vscode/extensions/github.copilot*", 104857600, RiskLevel::High),
-            CategoryItem::new("ai8", "Tabnine", "Tabnine AI 代码补全", "~/.tabnine", 52428800, RiskLevel::Medium),
-            CategoryItem::new("ai9", "Codeium", "Codeium AI 代码助手", "~/.codeium", 52428800, RiskLevel::Medium),
-            CategoryItem::new("ai10", "Kite", "Kite AI 代码补全", "~/.kite", 104857600, RiskLevel::Medium),
-            CategoryItem::new("ai11", "Kimi", "Kimi AI 助手配置", "~/.kimi", 26214400, RiskLevel::High),
-            CategoryItem::new("ai12", "Kimi Desktop", "Kimi 桌面应用数据", "~/AppData/Roaming/Kimi", 52428800, RiskLevel::High),
-            CategoryItem::new("ai13", "Qwen", "通义千问 AI 配置", "~/.qwen", 26214400, RiskLevel::High),
-            CategoryItem::new("ai14", "Tongyi", "通义 AI 助手数据", "~/AppData/Roaming/Tongyi", 52428800, RiskLevel::High),
-            CategoryItem::new("ai15", "Wenxin", "文心一言配置", "~/.wenxin", 26214400, RiskLevel::High),
-            CategoryItem::new("ai16", "Doubao", "豆包 AI 助手", "~/.doubao", 26214400, RiskLevel::High),
-            CategoryItem::new("ai17", "Zhipu", "智谱 AI 配置", "~/.zhipu", 26214400, RiskLevel::High),
-            CategoryItem::new("ai18", "Baichuan", "百川智能配置", "~/.baichuan", 26214400, RiskLevel::High),
-            CategoryItem::new("ai19", "DeepSeek", "DeepSeek AI 配置", "~/.deepseek", 26214400, RiskLevel::High),
-            CategoryItem::new("ai20", "OpenCode", "OpenCode AI 编辑器", "~/.opencode", 52428800, RiskLevel::High),
-            CategoryItem::new("ai21", "Trae", "Trae AI 编辑器", "~/.trae", 52428800, RiskLevel::High),
-            CategoryItem::new("ai22", "Windsurf", "Windsurf AI 编辑器", "~/.windsurf", 52428800, RiskLevel::High),
-            CategoryItem::new("ai23", "Aider", "Aider AI 编程助手", "~/.aider", 26214400, RiskLevel::Medium),
-            CategoryItem::new("ai24", "Continue", "Continue AI 扩展", "~/.continue", 52428800, RiskLevel::Medium),
-            CategoryItem::new("ai25", "Supermaven", "Supermaven AI 助手", "~/.supermaven", 26214400, RiskLevel::Medium),
-            CategoryItem::new("ai26", "Cody", "Sourcegraph Cody AI", "~/.sourcegraph", 52428800, RiskLevel::Medium),
-            CategoryItem::new("ai27", "JetBrains AI", "JetBrains AI 助手", "~/.jetbrains-ai", 52428800, RiskLevel::Medium),
-            CategoryItem::new("ai28", "Amazon CodeWhisperer", "AWS CodeWhisperer", "~/.aws/codewhisperer", 26214400, RiskLevel::High),
-            CategoryItem::new("ai29", "Google Gemini", "Gemini AI 配置", "~/.gemini", 26214400, RiskLevel::High),
-            CategoryItem::new("ai30", "Perplexity", "Perplexity AI 应用", "~/AppData/Roaming/Perplexity", 52428800, RiskLevel::High),
-            CategoryItem::new("ai31", "Hugging Face", "Hugging Face 缓存", "~/.cache/huggingface", 524288000, RiskLevel::Medium),
-            CategoryItem::new("ai32", "Ollama", "Ollama 本地模型", "~/.ollama", 1073741824, RiskLevel::Medium),
-        ]
+    fn get_risk_label(risk: &RiskLevel) -> &'static str {
+        match risk {
+            RiskLevel::Critical => "严重",
+            RiskLevel::High => "高风险",
+            RiskLevel::Medium => "中等",
+            RiskLevel::Low => "低风险",
+        }
     }
 
-    fn office_items() -> Vec<CategoryItem> {
-        vec![
-            CategoryItem::new("office1", "Microsoft Word", "Word 文档与模板", "~/Documents/Word", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office2", "Microsoft Excel", "Excel 表格与模板", "~/Documents/Excel", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office3", "Microsoft PowerPoint", "PPT 演示文稿", "~/Documents/PowerPoint", 209715200, RiskLevel::Medium),
-            CategoryItem::new("office4", "Microsoft Outlook", "Outlook 邮件数据", "~/AppData/Local/Microsoft/Outlook", 262144000, RiskLevel::Critical),
-            CategoryItem::new("office5", "Outlook PST", "Outlook 数据文件", "~/Documents/Outlook Files", 524288000, RiskLevel::Critical),
-            CategoryItem::new("office6", "Microsoft Teams", "Teams 缓存与日志", "~/AppData/Roaming/Microsoft/Teams", 157286400, RiskLevel::High),
-            CategoryItem::new("office7", "OneNote", "OneNote 笔记数据", "~/AppData/Local/Microsoft/OneNote", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office8", "OneDrive", "OneDrive 同步缓存", "~/OneDrive", 1073741824, RiskLevel::High),
-            CategoryItem::new("office9", "SharePoint", "SharePoint 同步数据", "~/SharePoint", 524288000, RiskLevel::High),
-            CategoryItem::new("office10", "WPS Office", "WPS 办公软件数据", "~/AppData/Local/Kingsoft", 157286400, RiskLevel::Medium),
-            CategoryItem::new("office11", "WPS Cloud", "WPS 云文档缓存", "~/AppData/Local/Kingsoft/wpscloud", 104857600, RiskLevel::High),
-            CategoryItem::new("office12", "LibreOffice", "LibreOffice 配置", "~/.config/libreoffice", 52428800, RiskLevel::Medium),
-            CategoryItem::new("office13", "OpenOffice", "OpenOffice 配置", "~/.openoffice", 52428800, RiskLevel::Medium),
-            CategoryItem::new("office14", "Google Drive", "Google Drive 本地同步", "~/Google Drive", 1073741824, RiskLevel::High),
-            CategoryItem::new("office15", "Dropbox", "Dropbox 同步文件夹", "~/Dropbox", 1073741824, RiskLevel::High),
-            CategoryItem::new("office16", "Box Drive", "Box 云盘同步", "~/Box", 524288000, RiskLevel::High),
-            CategoryItem::new("office17", "iCloud Drive", "iCloud 云盘数据", "~/Library/Mobile Documents", 1073741824, RiskLevel::High),
-            CategoryItem::new("office18", "Notion", "Notion 本地缓存", "~/AppData/Roaming/Notion", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office19", "Obsidian", "Obsidian 笔记库", "~/Obsidian", 262144000, RiskLevel::Medium),
-            CategoryItem::new("office20", "Evernote", "印象笔记本地数据", "~/AppData/Roaming/Evernote", 157286400, RiskLevel::Medium),
-            CategoryItem::new("office21", "Slack", "Slack 工作区数据", "~/AppData/Roaming/Slack", 262144000, RiskLevel::High),
-            CategoryItem::new("office22", "Discord", "Discord 应用数据", "~/AppData/Roaming/Discord", 157286400, RiskLevel::High),
-            CategoryItem::new("office23", "Zoom", "Zoom 会议数据", "~/AppData/Roaming/Zoom", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office24", "Tencent Meeting", "腾讯会议数据", "~/AppData/Roaming/Tencent/WeMeet", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office25", "DingTalk", "钉钉工作数据", "~/AppData/Roaming/DingTalk", 157286400, RiskLevel::High),
-            CategoryItem::new("office26", "WeChat Work", "企业微信数据", "~/AppData/Roaming/Tencent/WXWork", 262144000, RiskLevel::Critical),
-            CategoryItem::new("office27", "Feishu", "飞书工作数据", "~/AppData/Roaming/Feishu", 157286400, RiskLevel::High),
-            CategoryItem::new("office28", "Lark", "Lark 工作数据", "~/AppData/Roaming/Lark", 157286400, RiskLevel::High),
-            CategoryItem::new("office29", "Adobe Acrobat", "Adobe PDF 阅读器数据", "~/AppData/Roaming/Adobe/Acrobat", 104857600, RiskLevel::Medium),
-            CategoryItem::new("office30", "Foxit Reader", "福昕阅读器数据", "~/AppData/Roaming/Foxit Software", 52428800, RiskLevel::Medium),
-            CategoryItem::new("office31", "Thunderbird", "Thunderbird 邮件", "~/AppData/Roaming/Thunderbird", 262144000, RiskLevel::Critical),
-            CategoryItem::new("office32", "Apple Mail", "Apple 邮件数据", "~/Library/Mail", 524288000, RiskLevel::Critical),
-        ]
+    fn get_risk_color(risk: &RiskLevel) -> Color32 {
+        match risk {
+            RiskLevel::Critical => Color32::from_rgb(255, 50, 50),
+            RiskLevel::High => Color32::from_rgb(255, 140, 0),
+            RiskLevel::Medium => Color32::from_rgb(255, 200, 0),
+            RiskLevel::Low => Color32::from_rgb(80, 180, 80),
+        }
     }
 
-    pub fn select_all(&mut self, category_index: usize, select: bool) {
-        if let Some(category) = self.categories.get_mut(category_index) {
-            for item in &mut category.items {
+    fn update_counts(&mut self) {
+        self.total_item_count = self.categories.iter().map(|c| c.items.len()).sum();
+        self.selected_item_count = self.categories.iter()
+            .flat_map(|c| &c.items)
+            .filter(|item| item.selected)
+            .count();
+        self.total_selected_size = self.categories.iter()
+            .flat_map(|c| &c.items)
+            .filter(|item| item.selected)
+            .map(|item| item.size)
+            .sum();
+    }
+
+    fn select_all_in_category(&mut self, cat_idx: usize, select: bool) {
+        for item in &mut self.categories[cat_idx].items {
+            item.selected = select;
+        }
+        self.update_counts();
+    }
+
+    fn select_all(&mut self, select: bool) {
+        for cat in &mut self.categories {
+            for item in &mut cat.items {
                 item.selected = select;
             }
         }
-        self.update_selected_count();
+        self.update_counts();
     }
 
-    pub fn update_selected_count(&mut self) {
-        self.selected_count = 0;
-        self.total_size = 0;
-        for category in &self.categories {
-            for item in &category.items {
-                if item.selected {
-                    self.selected_count += 1;
-                    self.total_size += item.size;
-                }
-            }
-        }
-    }
-
-    pub fn perform_scan(&mut self) {
-        self.scan_in_progress = true;
+    fn start_scan(&mut self) {
+        self.is_scanning = true;
         self.scan_progress = 0.0;
-
+        self.scan_complete = false;
+        
         let scanners: Vec<Box<dyn Scanner>> = vec![
             Box::new(GitSshScanner),
             Box::new(BrowsersScanner),
@@ -300,421 +351,440 @@ impl ResignationApp {
             Box::new(AIToolsScanner),
         ];
 
+        for cat in &mut self.categories {
+            for item in &mut cat.items {
+                item.scanned = false;
+                item.detected = false;
+                item.size = 0;
+            }
+        }
+
         let total_scanners = scanners.len();
-        for (i, scanner) in scanners.iter().enumerate() {
+        for (i, scanner) in scanners.into_iter().enumerate() {
             let items = scanner.scan();
-            self.scan_progress = ((i + 1) as f32 / total_scanners as f32) * 100.0;
-
             for scanned_item in items {
-                self.update_item_from_scan(&scanned_item);
-            }
-        }
-
-        self.scan_in_progress = false;
-        self.scan_progress = 100.0;
-    }
-
-    fn update_item_from_scan(&mut self, scanned_item: &DataItem) {
-        for category in &mut self.categories {
-            for item in &mut category.items {
-                if item.path == scanned_item.path || item.name.to_lowercase().contains(&scanned_item.path.to_lowercase()) {
-                    item.scanned = true;
-                    item.detected = true;
-                    item.size = scanned_item.size;
-                }
-            }
-        }
-    }
-
-    pub fn execute_cleanup(&mut self) {
-        let mut items_to_clean: Vec<DataItem> = Vec::new();
-
-        for category in &self.categories {
-            for item in &category.items {
-                if item.selected {
-                    let data_item = DataItem::new(
-                        item.id.clone(),
-                        item.path.clone(),
-                        DataType::Other,
-                        item.risk_level,
-                        item.size,
-                        SystemTime::now(),
-                        SystemTime::now(),
-                    );
-                    items_to_clean.push(data_item);
-                }
-            }
-        }
-
-        if items_to_clean.is_empty() {
-            self.cleanup_result = Some("没有选择任何项目".to_string());
-            self.show_result_dialog = true;
-            return;
-        }
-
-        self.cleaner.clear_tasks();
-        self.cleaner.add_tasks(items_to_clean);
-
-        let result = self.cleaner.clean_all(|_tasks| true);
-
-        match result {
-            Ok(_) => {
-                let success_count = self.cleaner.tasks().iter().filter(|t| matches!(t.status, CleanStatus::Completed)).count();
-                let fail_count = self.cleaner.tasks().iter().filter(|t| matches!(t.status, CleanStatus::Failed(_))).count();
-                self.cleanup_result = Some(format!("清理完成: {} 成功, {} 失败", success_count, fail_count));
-            }
-            Err(e) => {
-                self.cleanup_result = Some(format!("清理出错: {}", e));
-            }
-        }
-
-        self.logs = self.cleaner.logs().to_vec();
-        self.show_result_dialog = true;
-    }
-
-    pub fn format_size(size: u64) -> String {
-        const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-        if size == 0 {
-            return "0 B".to_string();
-        }
-        let exp = (size as f64).log(1024.0).min(UNITS.len() as f64 - 1.0) as usize;
-        let value = size as f64 / 1024f64.powi(exp as i32);
-        if exp == 0 {
-            format!("{} {}", size, UNITS[exp])
-        } else {
-            format!("{:.2} {}", value, UNITS[exp])
-        }
-    }
-
-    pub fn draw_categories(&mut self, ui: &mut Ui) {
-        for cat_idx in 0..self.categories.len() {
-            let category = &self.categories[cat_idx];
-            let cat_color = category.color;
-            let cat_name = category.name.clone();
-            let cat_emoji = category.emoji.clone();
-            let is_expanded = category.expanded;
-            let item_count = category.items.len();
-            let selected_in_cat = category.items.iter().filter(|i| i.selected).count();
-
-            ui.horizontal(|ui| {
-                let header_text = if is_expanded {
-                    format!("▼ {} {} ({} / {})", cat_emoji, cat_name, selected_in_cat, item_count)
-                } else {
-                    format!("▶ {} {} ({} / {})", cat_emoji, cat_name, selected_in_cat, item_count)
-                };
-
-                let header_button = Button::new(RichText::new(header_text).color(cat_color).strong().size(16.0))
-                    .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::NONE);
-
-                if ui.add(header_button).clicked() {
-                    if let Some(cat) = self.categories.get_mut(cat_idx) {
-                        cat.expanded = !cat.expanded;
-                    }
-                }
-
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.small_button("全不选").clicked() {
-                        self.select_all(cat_idx, false);
-                    }
-                    if ui.small_button("全选").clicked() {
-                        self.select_all(cat_idx, true);
-                    }
-                });
-            });
-
-            if is_expanded {
-                ui.indent("cat_".to_string() + &cat_idx.to_string(), |ui| {
-                    for item_idx in 0..self.categories[cat_idx].items.len() {
-                        let item = &self.categories[cat_idx].items[item_idx];
-                        let item_id = item.id.clone();
-                        let item_name = item.name.clone();
-                        let item_desc = item.description.clone();
-                        let item_size = item.size;
-                        let item_selected = item.selected;
-                        let item_scanned = item.scanned;
-                        let item_detected = item.detected;
-                        let item_risk = item.risk_level;
-
-                        ui.horizontal(|ui| {
-                            let mut checked = item_selected;
-                            if ui.checkbox(&mut checked, "").changed() {
-                                if let Some(cat) = self.categories.get_mut(cat_idx) {
-                                    if let Some(it) = cat.items.get_mut(item_idx) {
-                                        it.selected = checked;
-                                    }
-                                }
-                                self.update_selected_count();
+                for cat in &mut self.categories {
+                    for item in &mut cat.items {
+                        if item.id == scanned_item.id || item.path.contains(&scanned_item.path) || scanned_item.path.contains(&item.path) {
+                            item.scanned = true;
+                            item.detected = scanned_item.size > 0;
+                            if scanned_item.size > 0 {
+                                item.size = scanned_item.size;
                             }
-
-                            let risk_color = match item_risk {
-                                RiskLevel::Critical => Color32::from_rgb(239, 68, 68),
-                                RiskLevel::High => Color32::from_rgb(249, 115, 22),
-                                RiskLevel::Medium => Color32::from_rgb(234, 179, 8),
-                                RiskLevel::Low => Color32::from_rgb(34, 197, 94),
-                            };
-
-                            let status_indicator = if item_detected {
-                                "●"
-                            } else if item_scanned {
-                                "○"
-                            } else {
-                                " "
-                            };
-
-                            ui.colored_label(risk_color, status_indicator);
-
-                            ui.label(RichText::new(&item_name).strong().size(14.0));
-                            ui.label(RichText::new(&item_desc).color(Color32::GRAY).size(12.0));
-
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                ui.label(RichText::new(Self::format_size(item_size)).monospace().size(12.0));
-                            });
-                        });
-
-                        ui.separator();
-                    }
-                });
-            }
-
-            ui.add_space(8.0);
-        }
-    }
-
-    pub fn draw_confirm_dialog(&mut self, ctx: &Context) {
-        if self.show_confirm_dialog {
-            let mut show = self.show_confirm_dialog;
-            Window::new("确认清理")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .show(ctx, |ui| {
-                    ui.label(format!("您选择了 {} 个项目，总计 {}", self.selected_count, Self::format_size(self.total_size)));
-                    ui.label("确定要清理这些项目吗？此操作不可撤销！");
-                    ui.label("");
-                    ui.horizontal(|ui| {
-                        if ui.button("  取消  ").clicked() {
-                            show = false;
                         }
-                        if ui.button("  确认清理  ").clicked() {
-                            self.execute_cleanup();
-                            show = false;
-                        }
-                    });
-                });
-            self.show_confirm_dialog = show;
-        }
-    }
-
-    pub fn draw_result_dialog(&mut self, ctx: &Context) {
-        if self.show_result_dialog {
-            let mut show = self.show_result_dialog;
-            Window::new("清理结果")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .show(ctx, |ui| {
-                    if let Some(ref result) = self.cleanup_result {
-                        ui.label(result);
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button("  确定  ").clicked() {
-                            show = false;
-                        }
-                    });
-                });
-            self.show_result_dialog = show;
-        }
-    }
-
-    fn draw_cleanup_tab(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            if ui.button("🔍 扫描系统").clicked() {
-                self.perform_scan();
-            }
-
-            if self.scan_in_progress {
-                ui.add(egui::ProgressBar::new(self.scan_progress / 100.0)
-                    .text(format!("扫描中... {:.1}%", self.scan_progress)));
-            }
-
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.add(Button::new(RichText::new("🗑 清理选中项").color(Color32::WHITE))
-                    .fill(Color32::from_rgb(239, 68, 68)))
-                    .clicked()
-                {
-                    if self.selected_count > 0 {
-                        self.show_confirm_dialog = true;
                     }
                 }
+            }
+            self.scan_progress = (i + 1) as f64 / total_scanners as f64;
+        }
 
-                ui.label(RichText::new(format!("已选: {} ({})", self.selected_count, Self::format_size(self.total_size)))
-                    .strong());
-            });
-        });
-
-        ui.separator();
-
-        ScrollArea::vertical().show(ui, |ui| {
-            self.draw_categories(ui);
-        });
+        self.is_scanning = false;
+        self.scan_complete = true;
+        self.update_counts();
     }
 
-    fn draw_logs_tab(&mut self, ui: &mut Ui) {
-        ui.heading("清理日志");
-        ui.separator();
+    fn start_cleanup(&mut self) {
+        self.tasks.clear();
+        self.success_count = 0;
+        self.fail_count = 0;
+        self.cleanup_started = true;
 
-        ScrollArea::vertical().show(ui, |ui| {
-            if self.logs.is_empty() {
-                ui.label("暂无日志记录");
-            } else {
-                for log in &self.logs {
-                    let level_color = match log.level {
-                        LogLevel::Info => Color32::from_rgb(59, 130, 246),
-                        LogLevel::Warning => Color32::from_rgb(234, 179, 8),
-                        LogLevel::Error => Color32::from_rgb(239, 68, 68),
-                    };
-
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(&log.timestamp).monospace().size(11.0));
-                        ui.colored_label(level_color, format!("[{:?}]", log.level));
-                        ui.label(&log.message);
-                    });
+        for cat in &self.categories {
+            for item in &cat.items {
+                if item.selected {
+                    self.tasks.push(CleanTask::new(
+                        item.id.clone(),
+                        item.name.clone(),
+                        item.path.clone(),
+                        item.size,
+                    ));
                 }
             }
-        });
+        }
     }
 
-    fn draw_settings_tab(&mut self, ui: &mut Ui) {
-        ui.heading("设置");
-        ui.separator();
-
-        ui.group(|ui| {
-            ui.label("安全设置");
-            ui.horizontal(|ui| {
-                ui.label("覆写次数:");
-                ui.add(egui::Slider::new(&mut self.overwrite_passes, 1..=35));
-            });
-            ui.label("覆写次数越多，数据恢复难度越大，但清理时间也会更长。");
-        });
-
-        ui.add_space(16.0);
-
-        ui.group(|ui| {
-            ui.label("外观设置");
-            ui.checkbox(&mut self.dark_mode, "深色模式");
-        });
-
-        ui.add_space(16.0);
-
-        ui.group(|ui| {
-            ui.label("关于");
-            ui.label("Resignation Delete v0.1.0");
-            ui.label("一个用于清理离职前敏感数据的工具");
-        });
+    fn execute_cleanup(&mut self, ctx: &Context) {
+        if !self.tasks.is_empty() {
+            let results = self.cleaner.clean_all(&mut self.tasks);
+            self.success_count = results.success_count;
+            self.fail_count = results.fail_count;
+            self.show_success_dialog = true;
+            self.cleanup_started = false;
+            
+            for cat in &mut self.categories {
+                for item in &mut cat.items {
+                    if item.selected {
+                        item.selected = false;
+                    }
+                }
+            }
+            self.update_counts();
+        }
     }
 }
 
 impl App for ResignationApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        if self.dark_mode {
-            ctx.set_visuals(Visuals::dark());
-        } else {
-            ctx.set_visuals(Visuals::light());
-        }
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading(RichText::new("🧹 Resignation Delete").size(24.0).strong());
+                ui.heading("🗑️ Resignation Delete - 离职数据清理工具");
                 ui.separator();
-
-                let tab_text_size = 16.0;
-                let cleanup_text = if self.current_tab == Tab::Cleanup {
-                    RichText::new("🧹 清理").strong().size(tab_text_size)
-                } else {
-                    RichText::new("🧹 清理").size(tab_text_size)
-                };
-                if ui.selectable_label(self.current_tab == Tab::Cleanup, cleanup_text).clicked() {
-                    self.current_tab = Tab::Cleanup;
-                }
-
-                let logs_text = if self.current_tab == Tab::Logs {
-                    RichText::new("📋 日志").strong().size(tab_text_size)
-                } else {
-                    RichText::new("📋 日志").size(tab_text_size)
-                };
-                if ui.selectable_label(self.current_tab == Tab::Logs, logs_text).clicked() {
-                    self.current_tab = Tab::Logs;
-                }
-
-                let settings_text = if self.current_tab == Tab::Settings {
-                    RichText::new("⚙️ 设置").strong().size(tab_text_size)
-                } else {
-                    RichText::new("⚙️ 设置").size(tab_text_size)
-                };
-                if ui.selectable_label(self.current_tab == Tab::Settings, settings_text).clicked() {
-                    self.current_tab = Tab::Settings;
-                }
+                ui.label(RichText::new("一键清除离职电脑上的个人数据").color(Color32::GRAY).size(12.0));
+            });
+            Separator::default().ui(ui);
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.current_tab, Tab::Cleanup, " 清理");
+                ui.selectable_value(&mut self.current_tab, Tab::Logs, " 日志");
+                ui.selectable_value(&mut self.current_tab, Tab::Settings, "️ 设置");
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.current_tab {
-                Tab::Cleanup => self.draw_cleanup_tab(ui),
-                Tab::Logs => self.draw_logs_tab(ui),
-                Tab::Settings => self.draw_settings_tab(ui),
+                Tab::Cleanup => self.draw_cleanup_panel(ui),
+                Tab::Logs => self.draw_logs_panel(ui),
+                Tab::Settings => self.draw_settings_panel(ui),
             }
         });
 
-        self.draw_confirm_dialog(ctx);
-        self.draw_result_dialog(ctx);
+        if self.show_confirm_dialog {
+            self.draw_confirm_dialog(ctx);
+        }
+
+        if self.show_success_dialog {
+            self.draw_success_dialog(ctx);
+        }
     }
 }
 
-fn setup_custom_style(ctx: &Context) {
-    let mut style = (*ctx.style()).clone();
+impl ResignationApp {
+    fn draw_cleanup_panel(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            // 左侧操作面板
+            ui.vertical(|ui| {
+                ui.set_width(200.0);
+                self.draw_control_panel(ui);
+            });
+            
+            ui.separator();
+            
+            // 右侧分类列表
+            ui.vertical(|ui| {
+                self.draw_categories(ui);
+            });
+        });
+    }
 
-    style.spacing.item_spacing = Vec2::new(8.0, 6.0);
-    style.spacing.button_padding = Vec2::new(12.0, 6.0);
-    style.spacing.window_margin = Margin::same(12.0);
+    fn draw_control_panel(&mut self, ui: &mut Ui) {
+        ui.group(|ui| {
+            ui.set_width(180.0);
+            ui.heading("操作面板");
+            Separator::default().ui(ui);
+            
+            // 扫描按钮
+            let scan_btn = Button::new(
+                RichText::new("🔍 一键扫描").size(16.0)
+            )
+            .fill(Color32::from_rgb(33, 150, 243))
+            .stroke(Stroke::NONE)
+            .rounding(8.0)
+            .min_size(Vec2::new(160.0, 45.0));
+            
+            if ui.add_enabled(!self.is_scanning, scan_btn).clicked() {
+                self.start_scan();
+            }
+            
+            ui.add_space(8.0);
+            
+            // 清理按钮
+            let has_selected = self.selected_item_count > 0;
+            let clean_btn = Button::new(
+                RichText::new("🗑️ 一键清理").size(16.0)
+            )
+            .fill(if has_selected { Color32::from_rgb(244, 67, 54) } else { Color32::GRAY })
+            .stroke(Stroke::NONE)
+            .rounding(8.0)
+            .min_size(Vec2::new(160.0, 45.0));
+            
+            if ui.add_enabled(has_selected, clean_btn).clicked() {
+                self.show_confirm_dialog = true;
+            }
+            
+            ui.add_space(16.0);
+            
+            // 统计信息
+            ui.group(|ui| {
+                ui.heading("统计信息");
+                Separator::default().ui(ui);
+                ui.label(format!("总项目: {}", self.total_item_count));
+                ui.label(format!("已选择: {} 项", self.selected_item_count));
+                ui.label(format!("总大小: {}", Self::format_size(self.total_selected_size)));
+                if self.scan_complete {
+                    ui.label(RichText::new("✅ 扫描完成").color(Color32::GREEN));
+                }
+            });
+            
+            ui.add_space(8.0);
+            
+            // 全选/取消全选
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("全选").size(13.0)).clicked() {
+                    self.select_all(true);
+                }
+                if ui.button(RichText::new("取消全选").size(13.0)).clicked() {
+                    self.select_all(false);
+                }
+            });
+        });
+    }
 
-    style.visuals.widgets.active.rounding = Rounding::same(8.0);
-    style.visuals.widgets.inactive.rounding = Rounding::same(8.0);
-    style.visuals.widgets.hovered.rounding = Rounding::same(8.0);
-    style.visuals.widgets.open.rounding = Rounding::same(8.0);
-    style.visuals.window_rounding = Rounding::same(12.0);
-    style.visuals.window_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 8.0),
-        blur: 16.0,
-        spread: 0.0,
-        color: Color32::from_black_alpha(64),
-    };
-    style.visuals.popup_shadow = egui::epaint::Shadow {
-        offset: Vec2::new(0.0, 4.0),
-        blur: 8.0,
-        spread: 0.0,
-        color: Color32::from_black_alpha(48),
-    };
-    style.visuals.collapsing_header_frame = true;
-    style.visuals.indent_has_left_vline = true;
+    fn draw_categories(&mut self, ui: &mut Ui) {
+        ui.heading("可清理项目");
+        Separator::default().ui(ui);
+        
+        ScrollArea::vertical().show(ui, |ui| {
+            for cat_idx in 0..self.categories.len() {
+                let cat = &self.categories[cat_idx];
+                let selected = cat.items.iter().filter(|i| i.selected).count();
+                let total = cat.items.len();
+                
+                let header = egui::CollapsingHeader::new(
+                    RichText::new(format!("{} {} ({}/{})", cat.icon, cat.name, selected, total))
+                        .color(cat.color)
+                        .size(16.0)
+                        .strong()
+                )
+                .default_open(cat.expanded)
+                .show(ui, |ui| {
+                    // 分类全选按钮
+                    let all_selected = selected == total;
+                    ui.horizontal(|ui| {
+                        let mut check = all_selected;
+                        if ui.checkbox(&mut check, RichText::new("全选此分类").color(cat.color)).changed() {
+                            self.select_all_in_category(cat_idx, check);
+                        }
+                    });
+                    
+                    ui.add_space(4.0);
+                    
+                    // 项目列表
+                    for item_idx in 0..cat.items.len() {
+                        let item = &cat.items[item_idx];
+                        
+                        let bg_color = if item.selected {
+                            Color32::from_rgb(240, 248, 255)
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        
+                        egui::Frame::none()
+                            .fill(bg_color)
+                            .rounding(4.0)
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let mut checked = item.selected;
+                                    if ui.checkbox(&mut checked, "").changed() {
+                                        self.categories[cat_idx].items[item_idx].selected = checked;
+                                        self.update_counts();
+                                    }
+                                    
+                                    ui.vertical(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(&item.name).strong().size(14.0));
+                                            if !item.description.is_empty() {
+                                                ui.label(RichText::new(&item.description).color(Color32::GRAY).size(12.0));
+                                            }
+                                        });
+                                        
+                                        ui.horizontal(|ui| {
+                                            let risk_color = Self::get_risk_color(&item.risk_level);
+                                            let risk_label = Self::get_risk_label(&item.risk_level);
+                                            ui.label(RichText::new(format!("[{}]", risk_label)).color(risk_color).size(11.0));
+                                            
+                                            ui.label(RichText::new(&item.path).color(Color32::GRAY).size(11.0));
+                                            
+                                            if item.size > 0 {
+                                                ui.label(RichText::new(Self::format_size(item.size)).color(Color32::GRAY).size(11.0));
+                                            }
+                                            
+                                            if item.detected {
+                                                ui.label(RichText::new("✅ 已发现").color(Color32::GREEN).size(11.0));
+                                            }
+                                        });
+                                    });
+                                });
+                            });
+                        
+                        ui.add_space(2.0);
+                        Separator::default().ui(ui);
+                    }
+                });
+                
+                self.categories[cat_idx].expanded = header.header_response.fully_open();
+                ui.add_space(8.0);
+            }
+        });
+    }
 
-    ctx.set_style(style);
+    fn draw_confirm_dialog(&mut self, ctx: &Context) {
+        Window::new("确认清理")
+            .collapsible(false)
+            .resizable(false)
+            .default_width(500.0)
+            .show(ctx, |ui| {
+                ui.label(RichText::new("⚠️ 确认要清理以下数据吗？").size(16.0).strong());
+                ui.add_space(8.0);
+                ui.label(format!("共 {} 个项目，总大小 {}", self.selected_item_count, Self::format_size(self.total_selected_size)));
+                ui.add_space(8.0);
+                
+                ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                    for cat in &self.categories {
+                        for item in &cat.items {
+                            if item.selected {
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("{} - {}", item.name, item.path));
+                                });
+                            }
+                        }
+                    }
+                });
+                
+                ui.add_space(16.0);
+                ui.horizontal(|ui| {
+                    if ui.button("确认清理").clicked() {
+                        self.start_cleanup();
+                        self.show_confirm_dialog = false;
+                        self.execute_cleanup(ctx);
+                    }
+                    if ui.button("取消").clicked() {
+                        self.show_confirm_dialog = false;
+                    }
+                });
+            });
+    }
+
+    fn draw_success_dialog(&mut self, ctx: &Context) {
+        Window::new("清理结果")
+            .collapsible(false)
+            .resizable(false)
+            .default_width(400.0)
+            .show(ctx, |ui| {
+                ui.label(RichText::new("✅ 清理完成！").size(18.0).strong().color(Color32::GREEN));
+                ui.add_space(12.0);
+                ui.label(format!("成功清理: {} 个项目", self.success_count));
+                ui.label(format!("清理失败: {} 个项目", self.fail_count));
+                ui.add_space(16.0);
+                if ui.button("确定").clicked() {
+                    self.show_success_dialog = false;
+                }
+            });
+    }
+
+    fn draw_logs_panel(&mut self, ui: &mut Ui) {
+        ui.heading("操作日志");
+        Separator::default().ui(ui);
+        
+        ScrollArea::vertical().show(ui, |ui| {
+            let logs = self.cleaner.get_logs();
+            if logs.is_empty() {
+                ui.label(RichText::new("暂无日志记录").color(Color32::GRAY));
+            } else {
+                for log in logs {
+                    let color = match log.level {
+                        LogLevel::Info => Color32::GREEN,
+                        LogLevel::Warning => Color32::YELLOW,
+                        LogLevel::Error => Color32::RED,
+                        LogLevel::Debug => Color32::GRAY,
+                    };
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("[{}]", log.timestamp.format("%H:%M:%S"))).color(Color32::GRAY).size(12.0));
+                        ui.label(RichText::new(format!("[{}]", match log.level {
+                            LogLevel::Info => "INFO",
+                            LogLevel::Warning => "WARN",
+                            LogLevel::Error => "ERROR",
+                            LogLevel::Debug => "DEBUG",
+                        })).color(color).size(12.0));
+                        ui.label(RichText::new(&log.message).size(12.0));
+                    });
+                }
+            }
+        });
+    }
+
+    fn draw_settings_panel(&mut self, ui: &mut Ui) {
+        ui.heading("设置");
+        Separator::default().ui(ui);
+        
+        ui.group(|ui| {
+            ui.heading("清理选项");
+            ui.checkbox(&mut true, "清理后覆写文件（安全删除）");
+            ui.checkbox(&mut true, "显示清理确认对话框");
+            ui.checkbox(&mut true, "清理完成后显示结果");
+        });
+        
+        ui.add_space(16.0);
+        
+        ui.group(|ui| {
+            ui.heading("关于");
+            ui.label("Resignation Delete v1.0");
+            ui.label("开源的离职数据清理工具");
+            ui.label("GitHub: https://github.com/ygtec/resignation-delete");
+        });
+    }
 }
 
 fn load_custom_fonts(ctx: &Context) {
     let mut fonts = FontDefinitions::default();
-
-    let font_path = std::path::Path::new("../assets/NotoSansCJKsc-Regular.otf");
-    if let Ok(font_data) = std::fs::read(font_path) {
-        fonts.font_data.insert(
-            "NotoSansCJKsc".to_owned(),
-            FontData::from_owned(font_data),
-        );
-        fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "NotoSansCJKsc".to_owned());
-        fonts.families.get_mut(&FontFamily::Monospace).unwrap().push("NotoSansCJKsc".to_owned());
-    }
-
+    
+    fonts.font_data.insert(
+        "NotoSansCJKsc".to_owned(),
+        FontData::from_static(include_bytes!("../assets/NotoSansCJKsc-Regular.otf")).into(),
+    );
+    
+    fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "NotoSansCJKsc".to_owned());
+    fonts.families.get_mut(&FontFamily::Monospace).unwrap().push("NotoSansCJKsc".to_owned());
+    
     ctx.set_fonts(fonts);
+}
+
+fn setup_custom_style(ctx: &Context) {
+    let mut style = Style::default();
+    
+    style.visuals = Visuals::light();
+    
+    style.spacing.item_spacing = Vec2::new(8.0, 6.0);
+    style.spacing.button_padding = Vec2::new(12.0, 6.0);
+    style.spacing.window_margin = Margin::same(12.0);
+    
+    style.visuals.widgets.active.rounding = Rounding::same(6.0);
+    style.visuals.widgets.inactive.rounding = Rounding::same(6.0);
+    style.visuals.widgets.hovered.rounding = Rounding::same(6.0);
+    style.visuals.widgets.open.rounding = Rounding::same(6.0);
+    style.visuals.window_rounding = Rounding::same(12.0);
+    style.visuals.menu_rounding = Rounding::same(8.0);
+    style.visuals.popup_rounding = Rounding::same(8.0);
+    style.visuals.window_fill = Color32::from_rgb(250, 250, 252);
+    style.visuals.panel_fill = Color32::from_rgb(250, 250, 252);
+    style.visuals.extreme_bg_color = Color32::WHITE;
+    
+    style.visuals.widgets.inactive.weak_bg_fill = Color32::WHITE;
+    style.visuals.widgets.inactive.bg_fill = Color32::WHITE;
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(220, 220, 230));
+    
+    style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(245, 245, 250);
+    style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(245, 245, 250);
+    style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(180, 180, 200));
+    
+    style.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(240, 240, 248);
+    style.visuals.widgets.active.bg_fill = Color32::from_rgb(240, 240, 248);
+    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(150, 150, 180));
+    
+    style.visuals.selection.bg_fill = Color32::from_rgb(33, 150, 243);
+    style.visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+    
+    style.visuals.hyperlink_color = Color32::from_rgb(33, 150, 243);
+    
+    ctx.set_style(style);
 }
 
 fn main() -> eframe::Result<()> {
