@@ -1,14 +1,15 @@
 use eframe::{egui, App, CreationContext, Frame, NativeOptions, run_native};
-use egui::{Color32, Context, FontData, FontDefinitions, FontFamily, RichText, Rounding, Stroke, Style, Vec2, Visuals, Window, Button, ScrollArea, Separator, Ui, Layout, Align, Margin, TextWrapMode};
+use egui::{Color32, Context, FontData, FontDefinitions, FontFamily, RichText, Rounding, Stroke, Style, Vec2, Visuals, Window, Button, ScrollArea, Ui, Margin, ProgressBar};
 use std::time::SystemTime;
-use chrono::Local;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod models;
 mod cleaner;
 mod scanners;
 
 use models::{DataItem, DataType, RiskLevel};
-use cleaner::{Cleaner, CleanLog, LogLevel, CleanTask, CleanStatus};
+use cleaner::{Cleaner, CleanLog, LogLevel, CleanStatus};
 use scanners::{Scanner, git_ssh::GitSshScanner, browsers::BrowsersScanner, jetbrains::JetBrainsScanner, vscode::VSCodeScanner, ai_tools::AIToolsScanner};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +46,18 @@ impl CategoryItem {
             detected: false,
         }
     }
+    
+    pub fn to_data_item(&self) -> DataItem {
+        DataItem::new(
+            self.id.clone(),
+            self.path.clone(),
+            DataType::Other,
+            self.risk_level.clone(),
+            self.size,
+            SystemTime::now(),
+            SystemTime::now(),
+        )
+    }
 }
 
 pub struct Category {
@@ -59,10 +72,10 @@ pub struct ResignationApp {
     current_tab: Tab,
     categories: Vec<Category>,
     cleaner: Cleaner,
-    tasks: Vec<CleanTask>,
     is_scanning: bool,
     scan_progress: f64,
     scan_complete: bool,
+    scan_status: String,
     total_selected_size: u64,
     total_item_count: usize,
     selected_item_count: usize,
@@ -70,27 +83,30 @@ pub struct ResignationApp {
     show_success_dialog: bool,
     success_count: usize,
     fail_count: usize,
-    cleanup_started: bool,
+    scan_cancellation: Option<Arc<AtomicBool>>,
 }
 
 impl ResignationApp {
-    pub fn new(cc: &CreationContext) -> Self {
+    pub fn new(_cc: &CreationContext) -> Self {
+        let categories = Self::create_default_categories();
+        let total_item_count = categories.iter().map(|c| c.items.len()).sum();
+        
         Self {
             current_tab: Tab::Cleanup,
-            categories: Self::create_default_categories(),
+            categories,
             cleaner: Cleaner::new(),
-            tasks: vec![],
             is_scanning: false,
             scan_progress: 0.0,
             scan_complete: false,
+            scan_status: String::new(),
             total_selected_size: 0,
-            total_item_count: 0,
+            total_item_count,
             selected_item_count: 0,
             show_confirm_dialog: false,
             show_success_dialog: false,
             success_count: 0,
             fail_count: 0,
-            cleanup_started: false,
+            scan_cancellation: None,
         }
     }
 
@@ -140,8 +156,8 @@ impl ResignationApp {
         ];
         Category {
             name: "开发工具".to_string(),
-            icon: "💻".to_string(),
-            color: Color32::from_rgb(0, 122, 204),
+            icon: "\u{1F4BB}",
+            color: Color32::from_rgb(33, 150, 243),
             items,
             expanded: true,
         }
@@ -184,7 +200,7 @@ impl ResignationApp {
         ];
         Category {
             name: "浏览器".to_string(),
-            icon: "🌐".to_string(),
+            icon: "\u{1F310}",
             color: Color32::from_rgb(0, 188, 212),
             items,
             expanded: true,
@@ -228,7 +244,7 @@ impl ResignationApp {
         ];
         Category {
             name: "AI 工具".to_string(),
-            icon: "🤖".to_string(),
+            icon: "\u{1F916}",
             color: Color32::from_rgb(156, 39, 176),
             items,
             expanded: true,
@@ -272,7 +288,7 @@ impl ResignationApp {
         ];
         Category {
             name: "办公软件".to_string(),
-            icon: "📊".to_string(),
+            icon: "\u{1F4CA}",
             color: Color32::from_rgb(76, 175, 80),
             items,
             expanded: true,
@@ -302,15 +318,14 @@ impl ResignationApp {
 
     fn get_risk_color(risk: &RiskLevel) -> Color32 {
         match risk {
-            RiskLevel::Critical => Color32::from_rgb(255, 50, 50),
-            RiskLevel::High => Color32::from_rgb(255, 140, 0),
-            RiskLevel::Medium => Color32::from_rgb(255, 200, 0),
-            RiskLevel::Low => Color32::from_rgb(80, 180, 80),
+            RiskLevel::Critical => Color32::from_rgb(244, 67, 54),
+            RiskLevel::High => Color32::from_rgb(255, 152, 0),
+            RiskLevel::Medium => Color32::from_rgb(255, 193, 7),
+            RiskLevel::Low => Color32::from_rgb(76, 175, 80),
         }
     }
 
     fn update_counts(&mut self) {
-        self.total_item_count = self.categories.iter().map(|c| c.items.len()).sum();
         self.selected_item_count = self.categories.iter()
             .flat_map(|c| &c.items)
             .filter(|item| item.selected)
@@ -342,6 +357,10 @@ impl ResignationApp {
         self.is_scanning = true;
         self.scan_progress = 0.0;
         self.scan_complete = false;
+        self.scan_status = "正在扫描...".to_string();
+        
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        self.scan_cancellation = Some(cancel_flag.clone());
         
         let scanners: Vec<Box<dyn Scanner>> = vec![
             Box::new(GitSshScanner),
@@ -360,12 +379,21 @@ impl ResignationApp {
         }
 
         let total_scanners = scanners.len();
+        let categories = &mut self.categories;
+        
         for (i, scanner) in scanners.into_iter().enumerate() {
+            if cancel_flag.load(Ordering::Relaxed) {
+                self.scan_status = "扫描已取消".to_string();
+                self.is_scanning = false;
+                return;
+            }
+            
+            self.scan_status = format!("正在扫描: {} ({}/{})", scanner.name(), i + 1, total_scanners);
             let items = scanner.scan();
             for scanned_item in items {
-                for cat in &mut self.categories {
-                    for item in &mut cat.items {
-                        if item.id == scanned_item.id || item.path.contains(&scanned_item.path) || scanned_item.path.contains(&item.path) {
+                for cat in categories.iter_mut() {
+                    for item in cat.items.iter_mut() {
+                        if item.id == scanned_item.id {
                             item.scanned = true;
                             item.detected = scanned_item.size > 0;
                             if scanned_item.size > 0 {
@@ -380,30 +408,18 @@ impl ResignationApp {
 
         self.is_scanning = false;
         self.scan_complete = true;
+        self.scan_status = "扫描完成".to_string();
+        self.scan_cancellation = None;
         self.update_counts();
     }
 
-    fn start_cleanup(&mut self) {
-        self.tasks.clear();
-        self.success_count = 0;
-        self.fail_count = 0;
-        self.cleanup_started = true;
-
-        for cat in &self.categories {
-            for item in &cat.items {
-                if item.selected {
-                    self.tasks.push(CleanTask::new(
-                        item.id.clone(),
-                        item.name.clone(),
-                        item.path.clone(),
-                        item.size,
-                    ));
-                }
-            }
+    fn cancel_scan(&mut self) {
+        if let Some(flag) = &self.scan_cancellation {
+            flag.store(true, Ordering::Relaxed);
         }
     }
 
-    fn execute_cleanup(&mut self, ctx: &Context) {
+    fn execute_cleanup(&mut self) {
         let mut data_items = Vec::new();
         for cat in &self.categories {
             for item in &cat.items {
@@ -420,10 +436,8 @@ impl ResignationApp {
         self.cleaner.clear_tasks();
         self.cleaner.add_tasks(data_items);
 
-        // clean_all 的回调用于确认是否继续清理
         let _ = self.cleaner.clean_all(|_| true);
 
-        // 统计清理结果
         let mut success = 0usize;
         let mut fail = 0usize;
         for task in self.cleaner.tasks() {
@@ -453,21 +467,24 @@ impl App for ResignationApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("🗑️ Resignation Delete - 离职数据清理工具");
+                ui.heading(RichText::new("Resignation Delete").size(20.0).strong().color(Color32::from_rgb(33, 150, 243)));
+                ui.add_space(12.0);
                 ui.separator();
-                ui.label(RichText::new("一键清除离职电脑上的个人数据").color(Color32::GRAY).size(12.0));
+                ui.add_space(12.0);
+                ui.label(RichText::new("\u79BB\u804C\u6570\u636E\u6E05\u7406\u5DE5\u5177").size(16.0).color(Color32::from_rgb(100, 100, 120)));
             });
-            Separator::default().ui(ui);
+            ui.add_space(6.0);
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.current_tab, Tab::Cleanup, " 清理");
-                ui.selectable_value(&mut self.current_tab, Tab::Logs, " 日志");
-                ui.selectable_value(&mut self.current_tab, Tab::Settings, "️ 设置");
+                ui.selectable_value(&mut self.current_tab, Tab::Cleanup, RichText::new("\u{1F9F9} \u6E05\u7406").size(14.0));
+                ui.selectable_value(&mut self.current_tab, Tab::Logs, RichText::new("\u{1F4DD} \u65E5\u5FD7").size(14.0));
+                ui.selectable_value(&mut self.current_tab, Tab::Settings, RichText::new("\u{2699} \u8BBE\u7F6E").size(14.0));
             });
+            ui.separator();
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.current_tab {
-                Tab::Cleanup => self.draw_cleanup_panel(ui),
+                Tab::Cleanup => self.draw_cleanup_panel(ui, ctx),
                 Tab::Logs => self.draw_logs_panel(ui),
                 Tab::Settings => self.draw_settings_panel(ui),
             }
@@ -484,80 +501,93 @@ impl App for ResignationApp {
 }
 
 impl ResignationApp {
-    fn draw_cleanup_panel(&mut self, ui: &mut Ui) {
+    fn draw_cleanup_panel(&mut self, ui: &mut Ui, ctx: &Context) {
         ui.horizontal(|ui| {
-            // 左侧操作面板
             ui.vertical(|ui| {
-                ui.set_width(200.0);
-                self.draw_control_panel(ui);
+                ui.set_width(240.0);
+                self.draw_control_panel(ui, ctx);
             });
             
-            ui.separator();
-            
-            // 右侧分类列表
+            ui.add_space(12.0);
             ui.vertical(|ui| {
                 self.draw_categories(ui);
             });
         });
     }
 
-    fn draw_control_panel(&mut self, ui: &mut Ui) {
+    fn draw_control_panel(&mut self, ui: &mut Ui, ctx: &Context) {
         ui.group(|ui| {
-            ui.set_width(180.0);
-            ui.heading("操作面板");
-            Separator::default().ui(ui);
+            ui.heading(RichText::new("\u64CD\u4F5C\u9762\u677F").size(16.0).strong());
+            ui.separator();
+            ui.add_space(12.0);
             
-            // 扫描按钮
             let scan_btn = Button::new(
-                RichText::new("🔍 一键扫描").size(16.0)
+                RichText::new("\u{1F50D} \u4E00\u952E\u626B\u63CF").size(15.0).strong()
             )
             .fill(Color32::from_rgb(33, 150, 243))
             .stroke(Stroke::NONE)
             .rounding(8.0)
-            .min_size(Vec2::new(160.0, 45.0));
+            .min_size(Vec2::new(200.0, 48.0));
             
             if ui.add_enabled(!self.is_scanning, scan_btn).clicked() {
                 self.start_scan();
+                ctx.request_repaint();
             }
             
             ui.add_space(8.0);
             
-            // 清理按钮
+            if self.is_scanning {
+                ui.add(ProgressBar::new(self.scan_progress as f32).text(&self.scan_status).animate(true));
+                ui.add_space(8.0);
+                
+                let cancel_btn = Button::new(RichText::new("\u2716 \u53D6\u6D88\u626B\u63CF").size(13.0))
+                    .fill(Color32::from_rgb(255, 82, 82))
+                    .stroke(Stroke::NONE)
+                    .rounding(6.0)
+                    .min_size(Vec2::new(200.0, 36.0));
+                if ui.add(cancel_btn).clicked() {
+                    self.cancel_scan();
+                }
+            }
+            
+            ui.add_space(12.0);
+            
             let has_selected = self.selected_item_count > 0;
             let clean_btn = Button::new(
-                RichText::new("🗑️ 一键清理").size(16.0)
+                RichText::new("\u{1F5D1} \u4E00\u952E\u6E05\u7406").size(15.0).strong()
             )
             .fill(if has_selected { Color32::from_rgb(244, 67, 54) } else { Color32::GRAY })
             .stroke(Stroke::NONE)
             .rounding(8.0)
-            .min_size(Vec2::new(160.0, 45.0));
+            .min_size(Vec2::new(200.0, 48.0));
             
             if ui.add_enabled(has_selected, clean_btn).clicked() {
                 self.show_confirm_dialog = true;
             }
             
-            ui.add_space(16.0);
+            ui.add_space(20.0);
             
-            // 统计信息
             ui.group(|ui| {
-                ui.heading("统计信息");
-                Separator::default().ui(ui);
-                ui.label(format!("总项目: {}", self.total_item_count));
-                ui.label(format!("已选择: {} 项", self.selected_item_count));
-                ui.label(format!("总大小: {}", Self::format_size(self.total_selected_size)));
+                ui.heading(RichText::new("\u7EDF\u8BA1\u4FE1\u606F").size(14.0).strong());
+                ui.separator();
+                ui.add_space(6.0);
+                ui.label(RichText::new(format!("\u603B\u9879\u76EE: {}", self.total_item_count)).size(13.0));
+                ui.label(RichText::new(format!("\u5DF2\u9009\u62E9: {} \u9879", self.selected_item_count)).size(13.0).strong());
+                ui.label(RichText::new(format!("\u603B\u5927\u5C0F: {}", Self::format_size(self.total_selected_size))).size(13.0).strong());
+                
                 if self.scan_complete {
-                    ui.label(RichText::new("✅ 扫描完成").color(Color32::GREEN));
+                    ui.add_space(4.0);
+                    ui.label(RichText::new("\u2705 \u626B\u63CF\u5B8C\u6210").color(Color32::GREEN).size(13.0).strong());
                 }
             });
             
-            ui.add_space(8.0);
+            ui.add_space(12.0);
             
-            // 全选/取消全选
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("全选").size(13.0)).clicked() {
+                if ui.button(RichText::new("\u2611 \u5168\u9009").size(13.0)).clicked() {
                     self.select_all(true);
                 }
-                if ui.button(RichText::new("取消全选").size(13.0)).clicked() {
+                if ui.button(RichText::new("\u2610 \u53D6\u6D88").size(13.0)).clicked() {
                     self.select_all(false);
                 }
             });
@@ -565,8 +595,8 @@ impl ResignationApp {
     }
 
     fn draw_categories(&mut self, ui: &mut Ui) {
-        ui.heading("可清理项目");
-        Separator::default().ui(ui);
+        ui.heading(RichText::new("\u53EF\u6E05\u7406\u9879\u76EE").size(16.0).strong());
+        ui.separator();
         
         ScrollArea::vertical().show(ui, |ui| {
             for cat_idx in 0..self.categories.len() {
@@ -574,38 +604,40 @@ impl ResignationApp {
                 let selected = cat.items.iter().filter(|i| i.selected).count();
                 let total = cat.items.len();
                 
-                let header = egui::CollapsingHeader::new(
+                egui::CollapsingHeader::new(
                     RichText::new(format!("{} {} ({}/{})", cat.icon, cat.name, selected, total))
                         .color(cat.color)
-                        .size(16.0)
+                        .size(15.0)
                         .strong()
                 )
                 .default_open(cat.expanded)
                 .show(ui, |ui| {
-                    // 分类全选按钮
                     let all_selected = selected == total;
                     ui.horizontal(|ui| {
                         let mut check = all_selected;
-                        if ui.checkbox(&mut check, RichText::new("全选此分类").color(cat.color)).changed() {
+                        if ui.checkbox(&mut check, RichText::new("\u5168\u9009\u6B64\u5206\u7C7B").color(cat.color).size(13.0)).changed() {
                             self.select_all_in_category(cat_idx, check);
                         }
                     });
                     
+                    ui.separator();
                     ui.add_space(4.0);
                     
-                    // 项目列表
                     for item_idx in 0..cat.items.len() {
                         let item = &cat.items[item_idx];
                         
                         let bg_color = if item.selected {
-                            Color32::from_rgb(240, 248, 255)
+                            Color32::from_rgb(232, 245, 255)
+                        } else if item_idx % 2 == 0 {
+                            Color32::from_rgb(250, 250, 252)
                         } else {
-                            Color32::TRANSPARENT
+                            Color32::WHITE
                         };
                         
                         egui::Frame::none()
                             .fill(bg_color)
-                            .rounding(4.0)
+                            .rounding(6.0)
+                            .inner_margin(Margin::symmetric(8.0, 6.0))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     let mut checked = item.selected;
@@ -625,7 +657,7 @@ impl ResignationApp {
                                         ui.horizontal(|ui| {
                                             let risk_color = Self::get_risk_color(&item.risk_level);
                                             let risk_label = Self::get_risk_label(&item.risk_level);
-                                            ui.label(RichText::new(format!("[{}]", risk_label)).color(risk_color).size(11.0));
+                                            ui.label(RichText::new(format!("[{}]", risk_label)).color(risk_color).size(11.0).strong());
                                             
                                             ui.label(RichText::new(&item.path).color(Color32::GRAY).size(11.0));
                                             
@@ -634,41 +666,41 @@ impl ResignationApp {
                                             }
                                             
                                             if item.detected {
-                                                ui.label(RichText::new("✅ 已发现").color(Color32::GREEN).size(11.0));
+                                                ui.label(RichText::new("\u2705 \u5DF2\u53D1\u73B0").color(Color32::GREEN).size(11.0).strong());
                                             }
                                         });
                                     });
                                 });
                             });
                         
-                        ui.add_space(2.0);
-                        Separator::default().ui(ui);
+                        ui.add_space(3.0);
                     }
                 });
                 
-                self.categories[cat_idx].expanded = header.header_response.fully_open();
-                ui.add_space(8.0);
+                ui.add_space(6.0);
             }
         });
     }
 
     fn draw_confirm_dialog(&mut self, ctx: &Context) {
-        Window::new("确认清理")
+        Window::new("\u26A0\uFE0F \u786E\u8BA4\u6E05\u7406")
             .collapsible(false)
-            .resizable(false)
-            .default_width(500.0)
+            .resizable(true)
+            .default_width(550.0)
+            .default_height(450.0)
             .show(ctx, |ui| {
-                ui.label(RichText::new("⚠️ 确认要清理以下数据吗？").size(16.0).strong());
+                ui.label(RichText::new("\u786E\u8BA4\u8981\u6E05\u7406\u4EE5\u4E0B\u6570\u636E\u5417\uFF1F").size(16.0).strong().color(Color32::RED));
                 ui.add_space(8.0);
-                ui.label(format!("共 {} 个项目，总大小 {}", self.selected_item_count, Self::format_size(self.total_selected_size)));
+                ui.label(format!("\u5171 {} \u4E2A\u9879\u76EE\uFF0C\u603B\u5927\u5C0F {}", self.selected_item_count, Self::format_size(self.total_selected_size)));
                 ui.add_space(8.0);
                 
-                ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
                     for cat in &self.categories {
                         for item in &cat.items {
                             if item.selected {
                                 ui.horizontal(|ui| {
-                                    ui.label(format!("{} - {}", item.name, item.path));
+                                    ui.label(RichText::new(format!("{} {}", cat.icon, item.name)).strong().size(13.0));
+                                    ui.label(RichText::new(&item.path).color(Color32::GRAY).size(12.0));
                                 });
                             }
                         }
@@ -677,12 +709,11 @@ impl ResignationApp {
                 
                 ui.add_space(16.0);
                 ui.horizontal(|ui| {
-                    if ui.button("确认清理").clicked() {
-                        self.start_cleanup();
+                    if ui.button(RichText::new("\u786E\u8BA4\u6E05\u7406").size(14.0).strong()).clicked() {
                         self.show_confirm_dialog = false;
-                        self.execute_cleanup(ctx);
+                        self.execute_cleanup();
                     }
-                    if ui.button("取消").clicked() {
+                    if ui.button(RichText::new("\u53D6\u6D88").size(14.0)).clicked() {
                         self.show_confirm_dialog = false;
                     }
                 });
@@ -690,46 +721,47 @@ impl ResignationApp {
     }
 
     fn draw_success_dialog(&mut self, ctx: &Context) {
-        Window::new("清理结果")
+        Window::new("\u6E05\u7406\u7ED3\u679C")
             .collapsible(false)
             .resizable(false)
-            .default_width(400.0)
+            .default_width(450.0)
             .show(ctx, |ui| {
-                ui.label(RichText::new("✅ 清理完成！").size(18.0).strong().color(Color32::GREEN));
+                ui.label(RichText::new("\u2705 \u6E05\u7406\u5B8C\u6210\uFF01").size(18.0).strong().color(Color32::GREEN));
                 ui.add_space(12.0);
-                ui.label(format!("成功清理: {} 个项目", self.success_count));
-                ui.label(format!("清理失败: {} 个项目", self.fail_count));
+                ui.label(format!("\u6210\u529F\u6E05\u7406: {} \u4E2A\u9879\u76EE", self.success_count));
+                ui.label(format!("\u6E05\u7406\u5931\u8D25: {} \u4E2A\u9879\u76EE", self.fail_count));
                 ui.add_space(16.0);
-                if ui.button("确定").clicked() {
+                if ui.button(RichText::new("\u786E\u5B9A").size(14.0)).clicked() {
                     self.show_success_dialog = false;
                 }
             });
     }
 
     fn draw_logs_panel(&mut self, ui: &mut Ui) {
-        ui.heading("操作日志");
-        Separator::default().ui(ui);
+        ui.heading(RichText::new("\u64CD\u4F5C\u65E5\u5FD7").size(16.0).strong());
+        ui.separator();
         
         ScrollArea::vertical().show(ui, |ui| {
-            let logs = self.cleaner.get_logs();
+            let logs = self.cleaner.logs();
             if logs.is_empty() {
-                ui.label(RichText::new("暂无日志记录").color(Color32::GRAY));
+                ui.centered_and_justified(|ui| {
+                    ui.label(RichText::new("\u6682\u65E0\u65E5\u5FD7\u8BB0\u5F55").color(Color32::GRAY).size(14.0));
+                });
             } else {
                 for log in logs {
                     let color = match log.level {
                         LogLevel::Info => Color32::GREEN,
                         LogLevel::Warning => Color32::YELLOW,
                         LogLevel::Error => Color32::RED,
-                        LogLevel::Debug => Color32::GRAY,
                     };
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("[{}]", log.timestamp.format("%H:%M:%S"))).color(Color32::GRAY).size(12.0));
-                        ui.label(RichText::new(format!("[{}]", match log.level {
+                        ui.label(RichText::new(format!("[{}]", log.timestamp)).color(Color32::GRAY).size(12.0));
+                        let level_str = match log.level {
                             LogLevel::Info => "INFO",
                             LogLevel::Warning => "WARN",
                             LogLevel::Error => "ERROR",
-                            LogLevel::Debug => "DEBUG",
-                        })).color(color).size(12.0));
+                        };
+                        ui.label(RichText::new(format!("[{}]", level_str)).color(color).size(12.0).strong());
                         ui.label(RichText::new(&log.message).size(12.0));
                     });
                 }
@@ -738,23 +770,25 @@ impl ResignationApp {
     }
 
     fn draw_settings_panel(&mut self, ui: &mut Ui) {
-        ui.heading("设置");
-        Separator::default().ui(ui);
+        ui.heading(RichText::new("\u8BBE\u7F6E").size(16.0).strong());
+        ui.separator();
         
         ui.group(|ui| {
-            ui.heading("清理选项");
-            ui.checkbox(&mut true, "清理后覆写文件（安全删除）");
-            ui.checkbox(&mut true, "显示清理确认对话框");
-            ui.checkbox(&mut true, "清理完成后显示结果");
+            ui.heading(RichText::new("\u6E05\u7406\u9009\u9879").size(14.0).strong());
+            ui.add_space(8.0);
+            ui.checkbox(&mut true, RichText::new("\u6E05\u7406\u540E\u8986\u5199\u6587\u4EF6\uFF08\u5B89\u5168\u5220\u9664\uFF09").size(13.0));
+            ui.checkbox(&mut true, RichText::new("\u663E\u793A\u6E05\u7406\u786E\u8BA4\u5BF9\u8BDD\u6846").size(13.0));
+            ui.checkbox(&mut true, RichText::new("\u6E05\u7406\u5B8C\u6210\u540E\u663E\u793A\u7ED3\u679C").size(13.0));
         });
         
         ui.add_space(16.0);
         
         ui.group(|ui| {
-            ui.heading("关于");
-            ui.label("Resignation Delete v1.0");
-            ui.label("开源的离职数据清理工具");
-            ui.label("GitHub: https://github.com/ygtec/resignation-delete");
+            ui.heading(RichText::new("\u5173\u4E8E").size(14.0).strong());
+            ui.add_space(8.0);
+            ui.label(RichText::new("Resignation Delete v1.0").size(13.0));
+            ui.label(RichText::new("\u5F00\u6E90\u7684\u79BB\u804C\u6570\u636E\u6E05\u7406\u5DE5\u5177").size(13.0));
+            ui.label(RichText::new("GitHub: https://github.com/ygtec/resignation-delete").size(13.0).color(Color32::from_rgb(33, 150, 243)));
         });
     }
 }
@@ -762,13 +796,19 @@ impl ResignationApp {
 fn load_custom_fonts(ctx: &Context) {
     let mut fonts = FontDefinitions::default();
     
-    fonts.font_data.insert(
-        "NotoSansCJKsc".to_owned(),
-        FontData::from_static(include_bytes!("../assets/NotoSansCJKsc-Regular.otf")).into(),
-    );
-    
-    fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "NotoSansCJKsc".to_owned());
-    fonts.families.get_mut(&FontFamily::Monospace).unwrap().push("NotoSansCJKsc".to_owned());
+    match std::fs::read("assets/NotoSansCJKsc-Regular.otf") {
+        Ok(font_bytes) => {
+            fonts.font_data.insert(
+                "NotoSansCJKsc".to_owned(),
+                FontData::from_owned(font_bytes).into(),
+            );
+            fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "NotoSansCJKsc".to_owned());
+            fonts.families.get_mut(&FontFamily::Monospace).unwrap().push("NotoSansCJKsc".to_owned());
+        }
+        Err(_) => {
+            eprintln!("Warning: Chinese font not found, using default fonts.");
+        }
+    }
     
     ctx.set_fonts(fonts);
 }
@@ -779,16 +819,19 @@ fn setup_custom_style(ctx: &Context) {
     style.visuals = Visuals::light();
     
     style.spacing.item_spacing = Vec2::new(8.0, 6.0);
-    style.spacing.button_padding = Vec2::new(12.0, 6.0);
+    style.spacing.button_padding = Vec2::new(12.0, 8.0);
     style.spacing.window_margin = Margin::same(12.0);
+    style.spacing.window_padding = Vec2::new(12.0, 12.0);
+    style.spacing.menu_margin = Margin::same(8.0);
     
     style.visuals.widgets.active.rounding = Rounding::same(6.0);
     style.visuals.widgets.inactive.rounding = Rounding::same(6.0);
     style.visuals.widgets.hovered.rounding = Rounding::same(6.0);
     style.visuals.widgets.open.rounding = Rounding::same(6.0);
-    style.visuals.window_rounding = Rounding::same(12.0);
+    style.visuals.window_rounding = Rounding::same(10.0);
     style.visuals.menu_rounding = Rounding::same(8.0);
     style.visuals.popup_rounding = Rounding::same(8.0);
+    
     style.visuals.window_fill = Color32::from_rgb(250, 250, 252);
     style.visuals.panel_fill = Color32::from_rgb(250, 250, 252);
     style.visuals.extreme_bg_color = Color32::WHITE;
@@ -816,8 +859,9 @@ fn setup_custom_style(ctx: &Context) {
 fn main() -> eframe::Result<()> {
     let options = NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0]),
+            .with_inner_size([1280.0, 850.0])
+            .with_min_inner_size([850.0, 650.0])
+            .with_title("Resignation Delete - \u79BB\u804C\u6570\u636E\u6E05\u7406\u5DE5\u5177"),
         ..Default::default()
     };
 
